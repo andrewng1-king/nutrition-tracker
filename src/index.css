@@ -51,6 +51,10 @@
   --warn: #ff5f64;
   --ok: #a8ee32;
 
+  /* Turbo: ngày chạy có kèm calisthenic. Cam nóng để tách hẳn khỏi lime của app. */
+  --turbo: #ff9d2e;
+  --grad-turbo: linear-gradient(120deg, #ffd166 0%, #ff9d2e 48%, #ff5f2e 100%);
+
   --r: 24px;
   --r-sm: 16px;
   --tap: 46px;
@@ -451,6 +455,27 @@ input[type='number']::-webkit-inner-spin-button {
   background: var(--surface-2);
 }
 
+.badge.turbo {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--turbo);
+  border-color: color-mix(in srgb, var(--turbo) 50%, transparent);
+  background: color-mix(in srgb, var(--turbo) 16%, transparent);
+}
+
+.badge.turbo .ico {
+  width: 12px;
+  height: 12px;
+}
+
+/* Lời mời bật Turbo — xám hẳn để không tranh chỗ với badge Turbo đang bật */
+.badge.turbo.off {
+  color: var(--dim);
+  border-color: var(--line);
+  background: var(--surface-2);
+}
+
 /* ---------- rings ---------- */
 
 .ring-wrap {
@@ -586,9 +611,11 @@ input[type='number']::-webkit-inner-spin-button {
   min-width: 0;
 }
 
+/* Chất còn thiếu KHÔNG đóng khung đỏ nữa: bản thân vòng đã đỏ/cam theo mức thiếu,
+   thêm khung nữa là báo động hai lần cho cùng một thông tin. Ô vẫn bấm được. */
 .mini-ring[data-alert='true'] {
-  border-color: rgba(255, 95, 100, 0.4);
-  background: rgba(255, 95, 100, 0.1);
+  border-color: transparent;
+  background: none;
 }
 
 .mini-name {
@@ -840,6 +867,176 @@ input[type='number']::-webkit-inner-spin-button {
   flex: none;
 }
 
+/* ---------- turbo: ngày chạy + calisthenic ---------- */
+
+/* Nút "Turbo" thay chỗ "Chạy bộ": nền gradient cam, chữ đậm, viền phát sáng nhẹ.
+   `overflow: hidden` để vệt sáng quét ngang không tràn ra khỏi viên nút. */
+.daybar button[data-turbo] {
+  position: relative;
+  overflow: hidden;
+  color: #2a1403;
+  background: var(--grad-turbo);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 209, 102, 0.65),
+    0 0 16px -4px rgba(255, 122, 46, 0.75);
+  font-weight: 700;
+  animation: turbo-idle 2.6s ease-in-out infinite;
+}
+
+/* Vệt sáng quét ngang một lần khi vừa kích hoạt — dấu hiệu "vừa được cường hoá" */
+.daybar button[data-turbo]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.55) 50%,
+    transparent 65%
+  );
+  transform: translateX(-120%);
+  pointer-events: none;
+}
+
+/* Nhịp "nảy" lúc kích hoạt, giữ luôn nhịp thở nền — khai báo lại cả hai vì
+   `animation` là một thuộc tính, ghi đè một cái là mất cái kia. */
+.daybar button[data-boost='true'] {
+  animation:
+    turbo-pop 0.5s cubic-bezier(0.2, 1.5, 0.4, 1),
+    turbo-idle 2.6s ease-in-out infinite;
+}
+
+.daybar button[data-boost='true']::after {
+  animation: turbo-sweep 0.85s 0.1s ease-out;
+}
+
+/* Kim đồng hồ vọt từ 0 lên vạch rồi rung nhẹ về chỗ — chỉ chạy lúc kích hoạt */
+.daybar button[data-boost='true'] .turbo-needle {
+  animation: needle-sweep 0.9s cubic-bezier(0.2, 1.4, 0.35, 1);
+}
+
+/* Chữ "Chạy bộ" đổi thành "Turbo" — cho nó nảy lên một nhịp thay vì đổi âm thầm */
+.daybar button[data-boost='true'] .daybar-label {
+  animation: label-swap 0.45s 0.05s ease-out backwards;
+}
+
+.turbo-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: var(--r-sm);
+  font-size: 12px;
+  color: var(--turbo);
+  border: 1px solid color-mix(in srgb, var(--turbo) 32%, transparent);
+  background: color-mix(in srgb, var(--turbo) 10%, transparent);
+}
+
+.turbo-note .ico {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.turbo-note[data-boost='true'] {
+  animation: turbo-slide 0.4s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+.turbo-note[data-boost='true'] .turbo-needle {
+  animation: needle-sweep 0.9s cubic-bezier(0.2, 1.4, 0.35, 1);
+}
+
+/* Thẻ "Buổi chạy" được cường hoá: viền gradient cam thay cho viền xám thường.
+   Dùng lớp phủ ::before để giữ nền thẻ đặc, gradient chỉ ăn vào phần viền 1px. */
+.card-turbo {
+  position: relative;
+  border-color: transparent;
+  box-shadow:
+    var(--shadow),
+    0 0 22px -10px rgba(255, 122, 46, 0.55);
+}
+
+.card-turbo::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: var(--grad-turbo);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: turbo-idle 2.6s ease-in-out infinite;
+}
+
+@keyframes turbo-idle {
+  50% {
+    filter: brightness(1.12);
+  }
+}
+
+@keyframes turbo-pop {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.07);
+  }
+}
+
+@keyframes turbo-sweep {
+  to {
+    transform: translateX(120%);
+  }
+}
+
+@keyframes turbo-slide {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes label-swap {
+  from {
+    opacity: 0;
+    transform: translateY(5px) scale(0.86);
+  }
+}
+
+@keyframes needle-sweep {
+  0% {
+    transform: rotate(-58deg);
+  }
+  65% {
+    transform: rotate(14deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+/* Hiệu ứng cường hoá là trang trí — máy bật "giảm chuyển động" thì bỏ hết,
+   trạng thái turbo vẫn đọc được qua màu, icon và chữ. */
+@media (prefers-reduced-motion: reduce) {
+  .daybar button[data-turbo],
+  .daybar button[data-boost='true'],
+  .daybar button[data-boost='true']::after,
+  .daybar button[data-boost='true'] .turbo-needle,
+  .daybar button[data-boost='true'] .daybar-label,
+  .turbo-note[data-boost='true'],
+  .turbo-note[data-boost='true'] .turbo-needle,
+  .card-turbo::before {
+    animation: none;
+  }
+}
+
 /* ---------- lifts ---------- */
 
 /* Lưới nhập set: số thứ tự | mức tạ | rep | xoá. Hai ô số phải đủ to để gõ
@@ -1031,6 +1228,71 @@ input[type='number']::-webkit-inner-spin-button {
   box-shadow: var(--shadow);
 }
 
+/* ---------- nút công cụ thử nghiệm ---------- */
+
+/* Góc trái dưới, ngay trên thanh nav — đối xứng với FAB bên phải nhưng nhỏ và
+   xám hẳn: đây là nút dev, không được tranh chú ý với nút "Thêm món". */
+.dev-fab {
+  position: fixed;
+  left: max(var(--pad), calc(50vw - 280px + var(--pad)));
+  bottom: calc(78px + var(--safe-b));
+  z-index: 30;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--surface-2) 88%, transparent);
+  border: 1px solid var(--line);
+  color: var(--dim);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: var(--shadow);
+}
+
+.dev-fab:active {
+  color: var(--lime);
+  border-color: color-mix(in srgb, var(--lime) 45%, var(--line));
+}
+
+.dev-fab .ico {
+  width: 17px;
+  height: 17px;
+}
+
+.dev-toast {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(130px + var(--safe-b));
+  z-index: 45;
+  max-width: min(420px, calc(100vw - 2 * var(--pad)));
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: var(--ink-2);
+  border: 1px solid var(--line);
+  color: var(--on-ink);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+  box-shadow: var(--shadow);
+  animation: toast-in 0.22s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 10px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dev-toast {
+    animation: none;
+  }
+}
+
 /* ---------- sheet ---------- */
 
 .backdrop {
@@ -1058,6 +1320,75 @@ input[type='number']::-webkit-inner-spin-button {
   flex-direction: column;
   animation: rise 0.22s cubic-bezier(0.2, 0.8, 0.3, 1);
   padding-bottom: var(--safe-b);
+}
+
+/* Popup nhỏ giữa màn: một câu hỏi, hai lựa chọn. Bottom sheet cho việc này là
+   quá nặng — sheet trượt hết chiều ngang màn cho một nút Có/Không. */
+.backdrop.center {
+  align-items: center;
+  padding: var(--pad);
+}
+
+.popup {
+  width: 100%;
+  max-width: 340px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 20px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  box-shadow: var(--shadow);
+  animation: popup-in 0.2s cubic-bezier(0.2, 1.2, 0.35, 1);
+}
+
+.popup .grid2 {
+  width: 100%;
+}
+
+.popup-ico {
+  width: 34px;
+  height: 34px;
+  color: var(--turbo);
+}
+
+.popup-ico.neutral {
+  color: var(--muted);
+}
+
+@keyframes popup-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .popup {
+    animation: none;
+  }
+}
+
+/* Sheet có ô tìm kiếm: khoá chiều cao, không co theo số món còn lại sau khi lọc.
+   Sheet co lại thì bàn phím bật lên che mất chính ô đang gõ. `dvh` bám theo
+   viewport thật nên khi bàn phím mở, sheet thu vào đúng phần màn còn nhìn thấy. */
+.sheet-full {
+  height: 92dvh;
+}
+
+/* Thân sheet phải giãn hết chiều cao còn lại. Không có dòng này thì thân sheet chỉ
+   cao bằng nội dung, để hở một mảng trống ở đáy và `margin-top: auto` bên dưới
+   không có chỗ nào để đẩy nút xuống. */
+.sheet-full .sheet-body {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Nút xác nhận nằm sát đáy sheet cố định, không trôi lơ lửng giữa khoảng trống */
+.sheet-full .sheet-cta {
+  margin-top: auto;
 }
 
 .sheet-head {

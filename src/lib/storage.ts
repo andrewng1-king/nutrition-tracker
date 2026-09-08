@@ -280,7 +280,14 @@ export function setDayTypes(date: string, types: DayType[]) {
     dayTypes: clean,
     // `isRunDay` là trường cũ, giữ đồng bộ để dữ liệu backup cũ không lệch
     isRunDay: clean.includes('run'),
+    // Turbo là biến thể của ngày chạy — bỏ nhãn chạy thì không còn turbo nữa.
+    ...(clean.includes('run') ? {} : { turbo: undefined }),
   })
+}
+
+/** Ngày chạy có kèm calisthenic. Chỉ có nghĩa khi ngày đang mang nhãn 'run'. */
+export function setTurbo(date: string, on: boolean) {
+  setDayField(date, { turbo: on || undefined })
 }
 
 export function toggleDayType(date: string, type: DayType, current: DayType[]) {
@@ -381,4 +388,17 @@ export function downloadBackup() {
 
 export function resetAll() {
   commit(emptyData())
+}
+
+/**
+ * Ghi đè toàn bộ state trong đúng một lần commit. Dùng cho nút nạp dữ liệu mẫu:
+ * dựng 7 ngày qua API từng-hành-động sẽ là hơn trăm lần ghi localStorage liên tiếp.
+ */
+export function replaceAll(next: AppData) {
+  commit({ ...emptyData(), ...next, version: VERSION })
+}
+
+/** State rỗng để dựng dữ liệu mẫu từ đầu mà không phải nhân bản `emptyData`. */
+export function blankData(): AppData {
+  return emptyData()
 }

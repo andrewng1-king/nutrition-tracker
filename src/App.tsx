@@ -1,4 +1,5 @@
 import { useState, type ComponentType } from 'react'
+import { DevTools } from './components/DevTools'
 import { IconLift, IconProfile, IconSettings, IconToday } from './components/icons'
 import { dateKey } from './lib/macros'
 import { Profile } from './screens/Profile'
@@ -30,6 +31,14 @@ export default function App() {
       {tab === 'training' && <Training onOpenDay={openDay} />}
       {tab === 'profile' && <Profile onOpenDay={openDay} />}
       {tab === 'settings' && <Settings />}
+
+      <DevTools
+        onSeeded={() => {
+          // Dữ liệu mẫu đổ vào 7 ngày gần nhất — kéo màn hình về hôm nay để thấy ngay.
+          setDate(dateKey())
+          setTab('today')
+        }}
+      />
 
       <nav className="tabbar">
         {TABS.map(([key, Icon, label]) => (

@@ -60,7 +60,11 @@ export function LiftSheet({
 
   if (view.kind === 'pick') {
     return (
-      <Sheet title="Chọn bài" onClose={() => setView({ kind: 'session' })}>
+      <Sheet
+        title="Chọn bài"
+        onClose={() => setView({ kind: 'session' })}
+        size="full"
+      >
         <PickView
           exercises={exercises}
           group={group}

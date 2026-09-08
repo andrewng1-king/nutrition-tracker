@@ -79,7 +79,7 @@ export function LogSheet({ date, defaultMeal, preset, onClose }: Props) {
   const list = q ? matches : tab === 'recent' ? recentFoods : matches
 
   return (
-    <Sheet title="Thêm món" onClose={onClose}>
+    <Sheet title="Thêm món" onClose={onClose} size="full">
       <MealPicker meal={meal} setMeal={pickMeal} />
 
       <input
@@ -287,6 +287,7 @@ function AmountStep({
     <Sheet
       title={food.name}
       onClose={onClose}
+      size="full"
       action={
         <button className="btn sm" onClick={onBack}>
           ‹ Đổi món
@@ -394,7 +395,10 @@ function AmountStep({
         )}
       </div>
 
-      <button className="btn primary full" onClick={() => onConfirm(amount, oilTsp, cost)}>
+      <button
+        className="btn primary full sheet-cta"
+        onClick={() => onConfirm(amount, oilTsp, cost)}
+      >
         Thêm vào bữa {MEAL_LABELS[meal].toLowerCase()}
       </button>
     </Sheet>

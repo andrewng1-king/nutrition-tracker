@@ -9,7 +9,7 @@ import { ScanSheet } from '../components/ScanSheet'
 import { Sheet } from '../components/Sheet'
 import { WeekChart } from '../components/WeekChart'
 import { DayTypeBar } from '../components/DayTypeBar'
-import { IconCamera } from '../components/icons'
+import { IconCamera, IconTurbo } from '../components/icons'
 import {
   MEAL_LABELS,
   MEAL_ORDER,
@@ -34,7 +34,7 @@ import {
 import { dateKey, evaluate, macrosFor, sumEntries } from '../lib/macros'
 import { formatDuration, formatPace, paceSecPerKm } from '../lib/run'
 import { buildNotice, type NoticeKey } from '../lib/status'
-import { allFoods, exerciseMap, foodMap, saveTemplate } from '../lib/storage'
+import { allFoods, exerciseMap, foodMap, saveTemplate, setTurbo } from '../lib/storage'
 import type { Entry, MealSlot } from '../lib/types'
 import { weekSummary } from '../lib/week'
 
@@ -129,15 +129,27 @@ export function Today({ date, setDate }: { date: string; setDate: (d: string) =>
         />
         {alerts.size > 0 && (
           <p className="dim" style={{ margin: '12px 0 0', textAlign: 'center' }}>
-            Ô đỏ = chưa đạt, bấm để xem cách bù.
+            Vòng đỏ / cam = chưa đạt, bấm vào vòng để xem cách bù.
           </p>
         )}
       </div>
 
       {runDay && (
-        <section className="card">
+        <section className={`card${day.turbo ? ' card-turbo' : ''}`}>
           <div className="between" style={{ marginBottom: 10 }}>
-            <h2 className="h2">Buổi chạy</h2>
+            <div className="row" style={{ gap: 8 }}>
+              <h2 className="h2">Buổi chạy</h2>
+              {/* T3 và CN đã là ngày chạy theo lịch, nên popup lúc bật nhãn không
+                  bao giờ hiện ra ở hai ngày đó — đây là chỗ bật/tắt Turbo còn lại. */}
+              <button
+                className={`badge turbo${day.turbo ? '' : ' off'}`}
+                aria-pressed={Boolean(day.turbo)}
+                onClick={() => setTurbo(date, !day.turbo)}
+              >
+                <IconTurbo className="ico" />
+                {day.turbo ? 'Turbo' : '+ Turbo'}
+              </button>
+            </div>
             <button className="btn sm" onClick={() => setRunning(true)}>
               {day.run ? 'Sửa' : 'Nhập số liệu'}
             </button>

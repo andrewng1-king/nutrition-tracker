@@ -116,6 +116,12 @@ export interface DayLog {
   /** nhãn ngày người dùng tự chọn; không có thì suy ra từ lịch tuần + log thực tế */
   dayTypes?: DayType[]
   run?: RunLog
+  /**
+   * Ngày chạy có kèm calisthenic — "Turbo". Thuần nhãn hiển thị: phần calo của
+   * buổi thể trọng đã nằm trong nhãn `lift`, cộng thêm ở đây là tính hai lần.
+   * Tắt nhãn `run` thì cờ này bị xoá theo.
+   */
+  turbo?: boolean
   /** buổi tạ trong ngày — cố tình KHÔNG cộng kcal vào target, xem lib/lift.ts */
   lifts?: LiftEntry[]
   /** nhãn buổi tập, quyết định danh sách bài gợi ý trước */
