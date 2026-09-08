@@ -133,6 +133,15 @@ export function IconTurbo({ className }: Props) {
   )
 }
 
+/** Mũi tên xuống — nút mở/thu gọn chi tiết buổi tập. */
+export function IconChevron({ className }: Props) {
+  return (
+    <svg {...base} className={className}>
+      <path d="m6.5 9.5 5.5 5.5 5.5-5.5" />
+    </svg>
+  )
+}
+
 /** Tua vít — nút công cụ dev ở góc trái dưới. */
 export function IconScrewdriver({ className }: Props) {
   return (

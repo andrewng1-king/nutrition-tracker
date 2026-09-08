@@ -1202,8 +1202,9 @@ input[type='number']::-webkit-inner-spin-button {
   pointer-events: none;
 }
 
+/* Lỗ giữa vành chỉ rộng ~48% đường kính, chữ phải vừa chỗ đó chứ không đè lên vành. */
 .spend-cap {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.14em;
@@ -1211,9 +1212,9 @@ input[type='number']::-webkit-inner-spin-button {
 }
 
 .spend-total {
-  font-size: 22px;
+  font-size: 16px;
   font-weight: 700;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.02em;
 }
 
 /* Danh sách bên dưới vòng: ô màu, tên bữa, số tiền, tỉ lệ — mỗi bữa một dòng
@@ -1583,6 +1584,50 @@ input[type='number']::-webkit-inner-spin-button {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 8px;
+}
+
+/* `hidden` phải thắng cả display của class — .list là flex nên nếu không có
+   dòng này thì thu gọn buổi tập sẽ không giấu được danh sách. */
+[hidden] {
+  display: none !important;
+}
+
+/* Nút thu gọn / mở chi tiết buổi tập: bốn con số tổng là vùng bấm, mũi tên
+   bên phải cho biết còn xem được thêm. */
+.lift-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.inline-stat {
+  display: flex;
+  flex-direction: column;
+}
+
+.lift-caret {
+  display: block;
+  flex: none;
+  color: var(--dim);
+  transition: transform 0.18s ease;
+}
+
+.lift-caret svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+
+.lift-toggle[aria-expanded='true'] .lift-caret {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lift-caret {
+    transition: none;
+  }
 }
 
 .amount {

@@ -11,11 +11,13 @@ export const MEAL_COLORS: Record<MealSlot, string> = {
 const SIZE = 200
 const CX = SIZE / 2
 const CY = SIZE / 2
-const THICK = 20
-/** để chừa chỗ cho quầng sáng — bán kính ngoài phải nhỏ hơn nửa khung */
-const R = 78
-/** khoảng hở giữa hai cung, radian. Đầu cung bo tròn đã ăn ~0,13 rad mỗi bên. */
-const GAP = 0.38
+/** vành dày, lỗ giữa còn ~48% đường kính ngoài */
+const THICK = 46
+const R = 65
+/** khoảng hở giữa hai cung, radian — đầu cung cắt phẳng nên hở bao nhiêu thấy bấy nhiêu */
+const GAP = 0.12
+/** cung ngắn nhất còn nhìn ra được, để phần chi tiêu nhỏ không biến mất */
+const MIN_ARC = 0.05
 const TAU = Math.PI * 2
 const START = -Math.PI / 2 // 12 giờ
 
@@ -32,7 +34,7 @@ function arcPath(from: number, to: number) {
 
 /**
  * Vòng tròn chia theo bữa. Mỗi cung dài theo tỉ lệ tiền của bữa đó trong tổng
- * chi, tách nhau bằng khoảng hở và có quầng sáng cùng màu.
+ * chi, cách nhau đúng một khoảng hở bằng nhau.
  *
  * Vòng đầy chứ không phải nửa vòng: bốn bữa trên nửa vòng thì cung của bữa nhỏ
  * ngắn hơn cả khoảng hở, nhìn ra chấm chứ không ra tỉ lệ.
@@ -75,20 +77,20 @@ export function ExpenseGauge({
               fill="none"
               stroke={MEAL_COLORS[segments[0].meal]}
               strokeWidth={THICK}
-              style={{ filter: `drop-shadow(0 0 7px ${MEAL_COLORS[segments[0].meal]})` }}
             />
           ) : (
-            segments.map(({ meal, from, to }) => (
-              <path
-                key={meal}
-                d={arcPath(from + GAP / 2, Math.max(from + GAP / 2 + 0.01, to - GAP / 2))}
-                stroke={MEAL_COLORS[meal]}
-                strokeWidth={THICK}
-                strokeLinecap="round"
-                fill="none"
-                style={{ filter: `drop-shadow(0 0 7px ${MEAL_COLORS[meal]})` }}
-              />
-            ))
+            segments.map(({ meal, from, to }) => {
+              const a = from + GAP / 2
+              return (
+                <path
+                  key={meal}
+                  d={arcPath(a, Math.max(a + MIN_ARC, to - GAP / 2))}
+                  stroke={MEAL_COLORS[meal]}
+                  strokeWidth={THICK}
+                  fill="none"
+                />
+              )
+            })
           )}
         </svg>
 
@@ -101,13 +103,7 @@ export function ExpenseGauge({
       <div className="spend-rows">
         {segments.map(({ meal, share }) => (
           <div key={meal} className="spend-row">
-            <i
-              className="spend-dot"
-              style={{
-                background: MEAL_COLORS[meal],
-                boxShadow: `0 0 8px ${MEAL_COLORS[meal]}`,
-              }}
-            />
+            <i className="spend-dot" style={{ background: MEAL_COLORS[meal] }} />
             <span className="grow">{MEAL_LABELS[meal]}</span>
             <span className="dim num">{vnd(byMeal[meal])}</span>
             <b className="num spend-pct">{n(share * 100)}%</b>

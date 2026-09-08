@@ -9,7 +9,7 @@ import { ScanSheet } from '../components/ScanSheet'
 import { Sheet } from '../components/Sheet'
 import { WeekChart } from '../components/WeekChart'
 import { DayTypeBar } from '../components/DayTypeBar'
-import { IconCamera, IconTurbo } from '../components/icons'
+import { IconCamera, IconChevron, IconTurbo } from '../components/icons'
 import {
   MEAL_LABELS,
   MEAL_ORDER,
@@ -192,6 +192,7 @@ export function Today({ date, setDate }: { date: string; setDate: (d: string) =>
           <span className="dim">{liftDay ? 'sửa ở tab Bài tập' : 'không chọn'}</span>
         </div>
         <LiftSummary
+          id="today-gym"
           entries={gymLifts}
           exById={exById}
           bodyKg={data.settings.weightKg}
@@ -205,6 +206,7 @@ export function Today({ date, setDate }: { date: string; setDate: (d: string) =>
           <span className="dim">{turbo ? 'sửa ở tab Bài tập' : 'không chọn'}</span>
         </div>
         <LiftSummary
+          id="today-calisthenic"
           entries={calLifts}
           exById={exById}
           bodyKg={data.settings.weightKg}
@@ -402,6 +404,18 @@ function Stat({ label, value }: { label: string; value: string }) {
   )
 }
 
+/** Bản inline của `Stat` — dùng trong nút mở/thu gọn buổi tập. */
+function InlineStat({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="inline-stat">
+      <span className="num" style={{ fontSize: 18, fontWeight: 700 }}>
+        {value}
+      </span>
+      <span className="dim">{label}</span>
+    </span>
+  )
+}
+
 /**
  * Thẻ một loại buổi tập. Ngày này không chọn loại đó thì thẻ vẫn hiện nguyên
  * chỗ nhưng mờ và khoá lại — ngày nghỉ là ba thẻ mờ hết, ngày turbo là thẻ tạ
@@ -427,18 +441,26 @@ function SessionCard({
   )
 }
 
-/** Tổng kết + danh sách bài của một buổi tập, dùng chung cho thẻ tạ và calisthenic. */
+/**
+ * Tổng kết + danh sách bài của một buổi tập, dùng chung cho thẻ tạ và calisthenic.
+ * Mặc định chỉ hiện bốn con số tổng — bấm vào mới mở danh sách từng bài, để màn
+ * "Hôm nay" không bị hai buổi tập đẩy phần ăn uống xuống quá xa.
+ */
 function LiftSummary({
   entries,
   exById,
   bodyKg,
   empty,
+  id,
 }: {
   entries: LiftEntry[]
   exById: Map<string, Exercise>
   bodyKg: number
   empty: string
+  id: string
 }) {
+  const [open, setOpen] = useState(false)
+
   if (entries.length === 0) {
     return (
       <p className="empty" style={{ padding: '10px 0 2px' }}>
@@ -450,13 +472,27 @@ function LiftSummary({
   const workout = summarize(entries, exById, bodyKg)
   return (
     <>
-      <div className="grid4" style={{ textAlign: 'center' }}>
-        <Stat label="bài" value={n(workout.exercises)} />
-        <Stat label="set" value={n(workout.sets)} />
-        <Stat label="rep" value={n(workout.reps)} />
-        <Stat label="volume" value={volumeShort(workout.volume)} />
-      </div>
-      <div className="list" style={{ marginTop: 6 }}>
+      <button
+        className="lift-toggle"
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={() => setOpen((o) => !o)}
+      >
+        {/* span chứ không phải div: nội dung nút chỉ được chứa phần tử inline */}
+        <span className="grid4 grow" style={{ textAlign: 'center' }}>
+          <InlineStat label="bài" value={n(workout.exercises)} />
+          <InlineStat label="set" value={n(workout.sets)} />
+          <InlineStat label="rep" value={n(workout.reps)} />
+          <InlineStat label="volume" value={volumeShort(workout.volume)} />
+        </span>
+        {/* xoay cái span bọc ngoài chứ không xoay thẳng thẻ <svg>: transform trên
+            phần tử SVG gốc không phải trình duyệt nào cũng áp */}
+        <span className="lift-caret">
+          <IconChevron />
+        </span>
+      </button>
+
+      <div className="list" id={id} hidden={!open} style={{ marginTop: 6 }}>
         {entries.map((entry) => {
           const ex = exById.get(entry.exerciseId)
           if (!ex) return null
