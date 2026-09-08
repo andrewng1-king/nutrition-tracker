@@ -1,4 +1,4 @@
-import { MEAL_LABELS, MEAL_ORDER, n, vnd } from '../lib/format'
+import { MEAL_LABELS, MEAL_ORDER, n, vnd, vndShort } from '../lib/format'
 import type { MealSlot } from '../lib/types'
 
 export const MEAL_COLORS: Record<MealSlot, string> = {
@@ -11,13 +11,13 @@ export const MEAL_COLORS: Record<MealSlot, string> = {
 const SIZE = 200
 const CX = SIZE / 2
 const CY = SIZE / 2
-/** vành dày, lỗ giữa còn ~48% đường kính ngoài */
-const THICK = 46
-const R = 65
-/** khoảng hở giữa hai cung, radian — đầu cung cắt phẳng nên hở bao nhiêu thấy bấy nhiêu */
-const GAP = 0.12
+/** vành mảnh, lỗ giữa rộng ~76% đường kính ngoài */
+const THICK = 18
+const R = 72
+/** các cung dính liền nhau — không chừa khe, vòng đọc như một dải liên tục */
+const GAP = 0
 /** cung ngắn nhất còn nhìn ra được, để phần chi tiêu nhỏ không biến mất */
-const MIN_ARC = 0.05
+const MIN_ARC = 0.04
 const TAU = Math.PI * 2
 const START = -Math.PI / 2 // 12 giờ
 
@@ -34,18 +34,22 @@ function arcPath(from: number, to: number) {
 
 /**
  * Vòng tròn chia theo bữa. Mỗi cung dài theo tỉ lệ tiền của bữa đó trong tổng
- * chi, cách nhau đúng một khoảng hở bằng nhau.
+ * chi, các cung nối liền nhau không chừa khe.
  *
  * Vòng đầy chứ không phải nửa vòng: bốn bữa trên nửa vòng thì cung của bữa nhỏ
- * ngắn hơn cả khoảng hở, nhìn ra chấm chứ không ra tỉ lệ.
+ * ngắn quá, nhìn ra chấm chứ không ra tỉ lệ.
  */
 export function ExpenseGauge({
   byMeal,
   total,
+  compact,
 }: {
   byMeal: Record<MealSlot, number>
   total: number
+  /** cột nửa màn hình: rút gọn số tiền để tên bữa không bị cắt mất */
+  compact?: boolean
 }) {
+  const money = compact ? vndShort : vnd
   const meals = MEAL_ORDER.filter((m) => byMeal[m] > 0)
 
   let cursor = START
@@ -96,7 +100,7 @@ export function ExpenseGauge({
 
         <div className="spend-center">
           <span className="spend-cap">Đã chi</span>
-          <span className="num spend-total">{vnd(total)}</span>
+          <span className="num spend-total">{money(total)}</span>
         </div>
       </div>
 
@@ -105,7 +109,7 @@ export function ExpenseGauge({
           <div key={meal} className="spend-row">
             <i className="spend-dot" style={{ background: MEAL_COLORS[meal] }} />
             <span className="grow">{MEAL_LABELS[meal]}</span>
-            <span className="dim num">{vnd(byMeal[meal])}</span>
+            <span className="dim num">{money(byMeal[meal])}</span>
             <b className="num spend-pct">{n(share * 100)}%</b>
           </div>
         ))}

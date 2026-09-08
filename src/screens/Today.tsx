@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { EntrySheet } from '../components/EntrySheet'
 import { ExpenseGauge } from '../components/ExpenseGauge'
 import { LogSheet } from '../components/LogSheet'
@@ -9,6 +9,7 @@ import { ScanSheet } from '../components/ScanSheet'
 import { Sheet } from '../components/Sheet'
 import { WeekChart } from '../components/WeekChart'
 import { DayTypeBar } from '../components/DayTypeBar'
+import { FoodIcon } from '../components/foodIcons'
 import { IconCamera, IconChevron, IconTurbo } from '../components/icons'
 import {
   MEAL_LABELS,
@@ -31,11 +32,11 @@ import {
   summarize,
   volumeShort,
 } from '../lib/lift'
-import { dateKey, evaluate, macrosFor, sumEntries } from '../lib/macros'
+import { computeAdjust, dateKey, evaluate, macrosFor, sumEntries } from '../lib/macros'
 import { formatDuration, formatPace, paceSecPerKm } from '../lib/run'
 import { buildNotice, type NoticeKey } from '../lib/status'
 import { allFoods, exerciseMap, foodMap, saveTemplate, setTurbo } from '../lib/storage'
-import type { Entry, Exercise, LiftEntry, MealSlot } from '../lib/types'
+import type { Entry, Exercise, Food, LiftEntry, Macros, MealSlot } from '../lib/types'
 import { weekSummary } from '../lib/week'
 
 export function Today({ date, setDate }: { date: string; setDate: (d: string) => void }) {
@@ -56,13 +57,18 @@ export function Today({ date, setDate }: { date: string; setDate: (d: string) =>
   const { day, runDay, liftDay, targets, totals, cost } = dayView(data, date)
   const exById = useMemo(() => exerciseMap(data), [data])
   const lifts = day.lifts ?? []
-  // Turbo = ngày chạy có kèm buổi thể trọng. Buổi tạ ở phòng gym là nhãn riêng,
-  // nên "tạ" và "calisthenic" là hai thẻ tách hẳn nhau.
+  // Turbo = ngày chạy có kèm buổi thể trọng. Ngày Turbo không xếp thêm buổi tạ
+  // phòng gym, nên "tạ" và "calisthenic" không bao giờ cùng bật.
   const turbo = runDay && Boolean(day.turbo)
   const gymLifts = lifts.filter((e) => exById.get(e.exerciseId)?.mode === 'gym')
   const calLifts = lifts.filter((e) => exById.get(e.exerciseId)?.mode === 'calisthenic')
   const warnings = evaluate(totals, targets)
   const week = weekSummary(data, date)
+  const adjust = computeAdjust(data.settings, {
+    runDay,
+    liftDay,
+    runBurnKcal: day.run?.burnKcal,
+  })
   const recentIds = Object.entries(data.recent)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 8)
@@ -85,9 +91,97 @@ export function Today({ date, setDate }: { date: string; setDate: (d: string) =>
     {} as Record<MealSlot, number>,
   )
 
+  /* Ba loại buổi tập luôn hiện đủ, nhưng loại đã chọn cho ngày này được xếp lên
+     trước: mở màn hình ra là thấy ngay buổi phải nhập, không phải lướt qua hai
+     thẻ mờ. Loại không chọn vẫn nằm dưới ở dạng khoá, không biến mất. */
+  const sessions: { key: string; active: boolean; node: React.ReactNode }[] = [
+    {
+      key: 'run',
+      active: runDay,
+      node: (
+        <SessionCard active={runDay} turbo={turbo}>
+          <div className="between" style={{ marginBottom: 10 }}>
+            <h2 className="h2">Buổi chạy</h2>
+            {runDay ? (
+              <button className="btn sm" onClick={() => setRunning(true)}>
+                {day.run ? 'Xem kết quả' : 'Nhập số liệu'}
+              </button>
+            ) : (
+              <span className="dim">không chọn</span>
+            )}
+          </div>
+          {day.run ? (
+            <div className="grid4" style={{ textAlign: 'center' }}>
+              <Stat label="km" value={n(day.run.distanceKm, 2)} />
+              <Stat label="pace" value={formatPace(paceSecPerKm(day.run))} />
+              <Stat
+                label="thời gian"
+                value={day.run.durationSec > 0 ? formatDuration(day.run.durationSec) : '—'}
+              />
+              <Stat label="đốt" value={n(day.run.burnKcal ?? 0)} />
+            </div>
+          ) : (
+            <p className="empty" style={{ padding: '10px 0 2px' }}>
+              {runDay
+                ? `Chưa có số liệu — target đang dùng mức mặc định ${n(data.settings.runDayExtraKcal)} kcal.`
+                : 'Ngày này không chọn buổi chạy.'}
+            </p>
+          )}
+        </SessionCard>
+      ),
+    },
+    {
+      key: 'lift',
+      active: liftDay,
+      node: (
+        <SessionCard active={liftDay}>
+          <div className="between" style={{ marginBottom: 10 }}>
+            <h2 className="h2">
+              Buổi tạ{day.liftGroup ? ` · ${LIFT_GROUP_LABELS[day.liftGroup]}` : ''}
+            </h2>
+            <span className="dim">{liftDay ? 'sửa ở tab Bài tập' : 'không chọn'}</span>
+          </div>
+          <LiftSummary
+            id="today-gym"
+            entries={gymLifts}
+            exById={exById}
+            bodyKg={data.settings.weightKg}
+            empty={
+              liftDay ? 'Chưa log bài nào — nhập ở tab Bài tập.' : 'Ngày này không chọn buổi tạ.'
+            }
+          />
+        </SessionCard>
+      ),
+    },
+    {
+      key: 'calisthenic',
+      active: turbo,
+      node: (
+        <SessionCard active={turbo} turbo={turbo}>
+          <div className="between" style={{ marginBottom: 10 }}>
+            <h2 className="h2">Buổi calisthenic</h2>
+            <span className="dim">{turbo ? 'sửa ở tab Bài tập' : 'không chọn'}</span>
+          </div>
+          <LiftSummary
+            id="today-calisthenic"
+            entries={calLifts}
+            exById={exById}
+            bodyKg={data.settings.weightKg}
+            empty={
+              turbo
+                ? 'Chưa log bài nào — nhập ở tab Bài tập.'
+                : 'Ngày này không chọn buổi calisthenic.'
+            }
+          />
+        </SessionCard>
+      ),
+    },
+  ]
+  const orderedSessions = [...sessions].sort((a, b) => Number(b.active) - Number(a.active))
+
   return (
     <div className="screen">
-      <header className="col" style={{ gap: 12 }}>
+      <header className="col today-head" style={{ gap: 12 }}>
         <div className="between">
           <h1 className="display">
             {dayLabel(date)}
@@ -127,9 +221,20 @@ export function Today({ date, setDate }: { date: string; setDate: (d: string) =>
         <MacroRings
           macros={totals}
           targets={targets}
-          runDay={runDay}
           alerts={alerts}
           onOpenNotice={setNoticeKey}
+          badge={
+            runDay ? (
+              <button
+                className={`badge turbo${day.turbo ? '' : ' off'}`}
+                aria-pressed={Boolean(day.turbo)}
+                onClick={() => setTurbo(date, !day.turbo)}
+              >
+                <IconTurbo className="ico" />
+                {day.turbo ? `Turbo · +${n(adjust.run)} kcal` : `+ Turbo · +${n(adjust.run)} kcal`}
+              </button>
+            ) : null
+          }
         />
         {alerts.size > 0 && (
           <p className="dim" style={{ margin: '12px 0 0', textAlign: 'center' }}>
@@ -138,85 +243,9 @@ export function Today({ date, setDate }: { date: string; setDate: (d: string) =>
         )}
       </div>
 
-      {/* Ba loại buổi tập luôn hiện đủ. Loại không được chọn cho ngày này thì mờ
-          đi và khoá lại — thấy ngay "hôm nay không có buổi này" thay vì thẻ biến
-          mất, dễ tưởng là chưa nhập. */}
-      <SessionCard active={runDay} turbo={turbo}>
-        <div className="between" style={{ marginBottom: 10 }}>
-          <div className="row" style={{ gap: 8 }}>
-            <h2 className="h2">Buổi chạy</h2>
-            {/* T3 và CN đã là ngày chạy theo lịch, nên popup lúc bật nhãn không
-                bao giờ hiện ra ở hai ngày đó — đây là chỗ bật/tắt Turbo còn lại. */}
-            <button
-              className={`badge turbo${day.turbo ? '' : ' off'}`}
-              aria-pressed={Boolean(day.turbo)}
-              disabled={!runDay}
-              onClick={() => setTurbo(date, !day.turbo)}
-            >
-              <IconTurbo className="ico" />
-              {day.turbo ? 'Turbo' : '+ Turbo'}
-            </button>
-          </div>
-          {runDay ? (
-            <button className="btn sm" onClick={() => setRunning(true)}>
-              {day.run ? 'Sửa' : 'Nhập số liệu'}
-            </button>
-          ) : (
-            <span className="dim">không chọn</span>
-          )}
-        </div>
-        {day.run ? (
-          <div className="grid4" style={{ textAlign: 'center' }}>
-            <Stat label="km" value={n(day.run.distanceKm, 2)} />
-            <Stat label="pace" value={formatPace(paceSecPerKm(day.run))} />
-            <Stat
-              label="thời gian"
-              value={day.run.durationSec > 0 ? formatDuration(day.run.durationSec) : '—'}
-            />
-            <Stat label="đốt" value={n(day.run.burnKcal ?? 0)} />
-          </div>
-        ) : (
-          <p className="empty" style={{ padding: '10px 0 2px' }}>
-            {runDay
-              ? `Chưa có số liệu — target đang dùng mức mặc định ${n(data.settings.runDayExtraKcal)} kcal.`
-              : 'Ngày này không chọn buổi chạy.'}
-          </p>
-        )}
-      </SessionCard>
-
-      <SessionCard active={liftDay}>
-        <div className="between" style={{ marginBottom: 10 }}>
-          <h2 className="h2">
-            Buổi tạ{day.liftGroup ? ` · ${LIFT_GROUP_LABELS[day.liftGroup]}` : ''}
-          </h2>
-          <span className="dim">{liftDay ? 'sửa ở tab Bài tập' : 'không chọn'}</span>
-        </div>
-        <LiftSummary
-          id="today-gym"
-          entries={gymLifts}
-          exById={exById}
-          bodyKg={data.settings.weightKg}
-          empty={liftDay ? 'Chưa log bài nào — nhập ở tab Bài tập.' : 'Ngày này không chọn buổi tạ.'}
-        />
-      </SessionCard>
-
-      <SessionCard active={turbo} turbo={turbo}>
-        <div className="between" style={{ marginBottom: 10 }}>
-          <h2 className="h2">Buổi calisthenic</h2>
-          <span className="dim">{turbo ? 'sửa ở tab Bài tập' : 'không chọn'}</span>
-        </div>
-        <LiftSummary
-          id="today-calisthenic"
-          entries={calLifts}
-          exById={exById}
-          bodyKg={data.settings.weightKg}
-          empty={
-            turbo
-              ? 'Chưa log bài nào — nhập ở tab Bài tập.'
-              : 'Ngày này không chọn buổi calisthenic.'
-          }
-        />
-      </SessionCard>
+      {orderedSessions.map((s) => (
+        <Fragment key={s.key}>{s.node}</Fragment>
+      ))}
 
       <section className="card">
         <div className="between" style={{ marginBottom: 12 }}>
@@ -241,100 +270,42 @@ export function Today({ date, setDate }: { date: string; setDate: (d: string) =>
         </div>
       </section>
 
-      <section className="card">
-        <div className="between" style={{ marginBottom: 4 }}>
-          <h2 className="h2">Chi tiêu ăn uống</h2>
-          <span className="dim num">Tuần: {vnd(week.cost)}</span>
+      {/* Chi tiêu và bốn bữa nằm cạnh nhau chứ không xếp chồng: trước đây năm thẻ
+          full-width làm màn "Hôm nay" dài gấp đôi màn hình, phải cuộn mới thấy hết
+          một ngày. Hai khối này cũng đọc chung một câu chuyện — bữa nào ăn gì và
+          bữa đó tốn bao nhiêu. */}
+      <div className="today-split">
+        <section className="card">
+          <div className="col" style={{ gap: 2, marginBottom: 4 }}>
+            <h2 className="h2">Chi tiêu ăn uống</h2>
+            <span className="dim num">Tuần: {vnd(week.cost)}</span>
+          </div>
+          {cost > 0 ? (
+            <ExpenseGauge byMeal={costByMeal} total={cost} compact />
+          ) : (
+            <p className="empty" style={{ padding: '14px 0 4px' }}>
+              Chưa nhập tiền cho ngày này. Giá tiền nhập lúc log món, hoặc bấm vào món
+              đã log để thêm sau.
+            </p>
+          )}
+        </section>
+
+        <div className="today-meals">
+          {MEAL_ORDER.map((meal) => (
+            <MealCard
+              key={meal}
+              meal={meal}
+              entries={day.entries.filter((e) => e.meal === meal)}
+              map={map}
+              dayTotals={totals}
+              cost={costByMeal[meal]}
+              onAdd={() => setLogging({ meal })}
+              onSaveTemplate={() => setTemplateFor(meal)}
+              onEdit={setEditing}
+            />
+          ))}
         </div>
-        {cost > 0 ? (
-          <ExpenseGauge byMeal={costByMeal} total={cost} />
-        ) : (
-          <p className="empty" style={{ padding: '14px 0 4px' }}>
-            Chưa nhập tiền cho ngày này. Giá tiền nhập lúc log món, hoặc bấm vào món đã log
-            để thêm sau.
-          </p>
-        )}
-      </section>
-
-      {day.entries.length === 0 && (
-        <div className="card">
-          <p className="muted" style={{ margin: 0 }}>
-            Chưa log gì cho ngày này. Bấm <b>+ Thêm món</b> để bắt đầu.
-          </p>
-        </div>
-      )}
-
-      {MEAL_ORDER.map((meal) => {
-        const entries = day.entries.filter((e) => e.meal === meal)
-        const sub = sumEntries(entries, (id) => map.get(id))
-        const mealCost = costByMeal[meal]
-        return (
-          <section key={meal} className="card">
-            <div className="meal-head">
-              <h2 className="h2">{MEAL_LABELS[meal]}</h2>
-              <span className="dim num">
-                {entries.length > 0
-                  ? `${n(sub.kcal)} kcal${mealCost > 0 ? ` · ${vnd(mealCost)}` : ''}`
-                  : '—'}
-              </span>
-            </div>
-
-            {entries.length === 0 ? (
-              <p className="empty" style={{ padding: '10px 0' }}>
-                Chưa log gì
-              </p>
-            ) : (
-              <div className="list">
-                {entries.map((e) => {
-                  const food = map.get(e.foodId)
-                  if (!food) return null
-                  const m = macrosFor(food, e.amount, e.oilTsp ?? 0)
-                  return (
-                    <button key={e.id} className="entry" onClick={() => setEditing(e)}>
-                      {food.image ? (
-                        <img className="thumb" src={food.image} alt="" />
-                      ) : (
-                        <span className="thumb" aria-hidden="true" />
-                      )}
-                      <span className="grow">
-                        <span className="row" style={{ gap: 6 }}>
-                          <span className="truncate">{food.name}</span>
-                          {e.cheat && <span className="badge moderate">cheat</span>}
-                        </span>
-                        <span className="dim num">
-                          {amountLabel(e.amount, food.servingUnit)}
-                          {e.oilTsp ? ` + ${n(e.oilTsp)} mcf dầu` : ''} · P {n(m.protein, 1)}{' '}
-                          · F {n(m.fat, 1)} · C {n(m.carb, 1)}
-                        </span>
-                      </span>
-                      <span className="entry-kcal">
-                        {n(m.kcal)}
-                        {e.cost ? (
-                          <>
-                            <br />
-                            <span className="dim">{vnd(e.cost)}</span>
-                          </>
-                        ) : null}
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-            )}
-
-            <div className="row" style={{ marginTop: 10 }}>
-              <button className="btn sm" onClick={() => setLogging({ meal })}>
-                + Thêm món
-              </button>
-              {entries.length > 0 && (
-                <button className="btn sm" onClick={() => setTemplateFor(meal)}>
-                  Lưu thành mẫu
-                </button>
-              )}
-            </div>
-          </section>
-        )
-      })}
+      </div>
 
       <div className="fab-stack">
         <button
@@ -390,6 +361,139 @@ export function Today({ date, setDate }: { date: string; setDate: (d: string) =>
         />
       )}
     </div>
+  )
+}
+
+/** Phần đóng góp của một bữa vào tổng cả ngày, %. Ngày chưa có gì thì trả 0. */
+function share(part: number, whole: number): number {
+  return whole > 0 ? Math.round((part / whole) * 100) : 0
+}
+
+const MACRO_TINTS: [keyof Macros, string, string][] = [
+  ['protein', 'P', 'var(--protein)'],
+  ['fat', 'F', 'var(--fat)'],
+  ['carb', 'C', 'var(--carb)'],
+]
+
+/**
+ * Thẻ nhỏ cho một bữa. Mặt ngoài chỉ có kcal và phần trăm từng chất đóng góp
+ * vào cả ngày — đủ để biết bữa nào đang gánh macro nào. Bấm vào mới mở danh
+ * sách món và số tiền, nên bốn bữa vẫn nằm gọn trong nửa màn hình.
+ */
+function MealCard({
+  meal,
+  entries,
+  map,
+  dayTotals,
+  cost,
+  onAdd,
+  onSaveTemplate,
+  onEdit,
+}: {
+  meal: MealSlot
+  entries: Entry[]
+  map: Map<string, Food>
+  dayTotals: Macros
+  cost: number
+  onAdd: () => void
+  onSaveTemplate: () => void
+  onEdit: (entry: Entry) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const sub = sumEntries(entries, (id) => map.get(id))
+  const id = `meal-detail-${meal}`
+
+  return (
+    <section className="card meal-card">
+      <button
+        className="meal-card-head"
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span className="grow">
+          <span className="meal-card-name">{MEAL_LABELS[meal]}</span>
+          <span className="meal-card-kcal num">
+            {entries.length > 0 ? `${n(sub.kcal)} kcal` : 'chưa log'}
+          </span>
+        </span>
+        <span className="lift-caret">
+          <IconChevron />
+        </span>
+      </button>
+
+      <div className="meal-pcts">
+        {MACRO_TINTS.map(([key, tag, tint]) => (
+          <span
+            key={key}
+            className="meal-pct num"
+            style={{ '--tint': tint } as React.CSSProperties}
+          >
+            {tag} {share(sub[key], dayTotals[key])}%
+          </span>
+        ))}
+        {sub.addedSugar > 0 && (
+          <span
+            className="meal-pct num"
+            style={{ '--tint': 'var(--sugar)' } as React.CSSProperties}
+          >
+            Đ {share(sub.addedSugar, dayTotals.addedSugar)}%
+          </span>
+        )}
+      </div>
+
+      <div className="meal-card-detail" id={id} hidden={!open}>
+        {entries.length === 0 ? (
+          <p className="empty" style={{ padding: '8px 0' }}>
+            Chưa log gì
+          </p>
+        ) : (
+          <>
+            <div className="list">
+              {entries.map((e) => {
+                const food = map.get(e.foodId)
+                if (!food) return null
+                const m = macrosFor(food, e.amount, e.oilTsp ?? 0)
+                return (
+                  <button key={e.id} className="entry" onClick={() => onEdit(e)}>
+                    <FoodIcon food={food} size="sm" />
+                    {/* Cột hẹp nên dòng dưới chỉ giữ khối lượng và tiền: tỉ lệ
+                        macro của cả bữa đã nằm ngay trên mặt thẻ rồi. */}
+                    <span className="grow" style={{ minWidth: 0 }}>
+                      <span className="row" style={{ gap: 5 }}>
+                        <span className="truncate">{food.name}</span>
+                        {e.cheat && <span className="badge moderate">cheat</span>}
+                      </span>
+                      <span className="dim num truncate" style={{ display: 'block' }}>
+                        {amountLabel(e.amount, food.servingUnit)}
+                        {e.oilTsp ? ` + ${n(e.oilTsp)} mcf dầu` : ''}
+                        {e.cost ? ` · ${vnd(e.cost)}` : ''}
+                      </span>
+                    </span>
+                    <span className="entry-kcal">{n(m.kcal)}</span>
+                  </button>
+                )
+              })}
+            </div>
+            <div className="between meal-card-cost">
+              <span className="dim">Tiền bữa này</span>
+              <b className="num">{cost > 0 ? vnd(cost) : 'chưa nhập'}</b>
+            </div>
+          </>
+        )}
+
+        <div className="row" style={{ marginTop: 10, flexWrap: 'wrap', gap: 8 }}>
+          <button className="btn sm" onClick={onAdd}>
+            + Thêm món
+          </button>
+          {entries.length > 0 && (
+            <button className="btn sm" onClick={onSaveTemplate}>
+              Lưu mẫu
+            </button>
+          )}
+        </div>
+      </div>
+    </section>
   )
 }
 

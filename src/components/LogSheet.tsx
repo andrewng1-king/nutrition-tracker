@@ -5,6 +5,7 @@ import { useData } from '../lib/hooks'
 import { macrosFor } from '../lib/macros'
 import { addEntry, allFoods, applyTemplate, suggestedCost } from '../lib/storage'
 import type { Food, MealSlot } from '../lib/types'
+import { FoodIcon } from './foodIcons'
 import { NumberInput } from './NumberInput'
 import { Sheet } from './Sheet'
 
@@ -179,11 +180,7 @@ function FoodList({
 function FoodRow({ food, onPick }: { food: Food; onPick: (f: Food) => void }) {
   return (
     <button className="list-item" onClick={() => onPick(food)}>
-      {food.image ? (
-        <img className="thumb" src={food.image} alt="" />
-      ) : (
-        <span className="thumb" aria-hidden="true" />
-      )}
+      <FoodIcon food={food} />
       <span className="grow">
         <span className="row" style={{ gap: 6 }}>
           <span className="truncate">{food.name}</span>

@@ -1,6 +1,6 @@
 import { SEED_EXERCISES } from '../data/exercises'
 import { SEED_FOODS } from '../data/foods'
-import { DEFAULT_SETTINGS, dateKey } from './macros'
+import { DEFAULT_SETTINGS, dateKey, dayTypesFor } from './macros'
 import type {
   AppData,
   DayLog,
@@ -281,13 +281,30 @@ export function setDayTypes(date: string, types: DayType[]) {
     // `isRunDay` là trường cũ, giữ đồng bộ để dữ liệu backup cũ không lệch
     isRunDay: clean.includes('run'),
     // Turbo là biến thể của ngày chạy — bỏ nhãn chạy thì không còn turbo nữa.
-    ...(clean.includes('run') ? {} : { turbo: undefined }),
+    // Chọn buổi tạ cũng huỷ turbo: hai nhãn này loại trừ nhau.
+    ...(clean.includes('run') && !clean.includes('lift') ? {} : { turbo: undefined }),
   })
 }
 
-/** Ngày chạy có kèm calisthenic. Chỉ có nghĩa khi ngày đang mang nhãn 'run'. */
+/**
+ * Ngày chạy có kèm calisthenic. Chỉ có nghĩa khi ngày đang mang nhãn 'run'.
+ * Turbo loại trừ buổi tạ: chạy + thể trọng trong cùng một ngày thì không xếp
+ * thêm buổi tạ phòng gym nữa, nên bật Turbo là gỡ luôn nhãn 'lift'.
+ */
 export function setTurbo(date: string, on: boolean) {
-  setDayField(date, { turbo: on || undefined })
+  if (!on) {
+    setDayField(date, { turbo: undefined })
+    return
+  }
+  update((d) =>
+    withDay(d, date, (day) => {
+      const types = dayTypesFor(date, d.settings, day).filter(
+        (t) => t !== 'lift' && t !== 'rest',
+      )
+      const next: DayType[] = types.includes('run') ? types : [...types, 'run']
+      return { ...day, turbo: true, dayTypes: next, isRunDay: true }
+    }),
+  )
 }
 
 export function toggleDayType(date: string, type: DayType, current: DayType[]) {

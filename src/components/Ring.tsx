@@ -204,15 +204,16 @@ function heroFontSize(text: string) {
 export function MacroRings({
   macros,
   targets,
-  runDay,
   heading = 'Mục tiêu hôm nay',
+  badge,
   alerts,
   onOpenNotice,
 }: {
   macros: Macros
   targets: Targets
-  runDay?: boolean
   heading?: string
+  /** nhãn phụ dưới dải target — màn "Hôm nay" gắn nút Turbo vào đây */
+  badge?: React.ReactNode
   /** chỉ số nào đang vi phạm ngưỡng — hiện chấm đỏ trên vòng đó */
   alerts?: Set<NoticeKey>
   onOpenNotice?: (key: NoticeKey) => void
@@ -250,11 +251,7 @@ export function MacroRings({
           <div className={`hero-left num${kcalLeft < 0 ? ' over' : ''}`}>
             {kcalLeft >= 0 ? `Còn ${n(kcalLeft)} kcal` : `Vượt ${n(-kcalLeft)} kcal`}
           </div>
-          {runDay && (
-            <span className="badge run" style={{ marginTop: 8, display: 'inline-block' }}>
-              Ngày chạy · +{n(targets.carb - 285)}g carb
-            </span>
-          )}
+          {badge && <div style={{ marginTop: 8 }}>{badge}</div>}
         </div>
       </div>
 

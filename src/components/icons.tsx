@@ -133,6 +133,37 @@ export function IconTurbo({ className }: Props) {
   )
 }
 
+/**
+ * Logo app — đúng hình ở public/icon.svg: vòng target khuyết một đoạn, chấm nhỏ
+ * ở góc trên trái. Vẽ lại bằng SVG inline để tô được theo màu chỗ đặt.
+ */
+export function IconLogo({ className }: Props) {
+  return (
+    <svg viewBox="0 0 512 512" className={className} aria-hidden="true">
+      <circle
+        cx="256"
+        cy="256"
+        r="151"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="51"
+        opacity="0.25"
+      />
+      <circle
+        cx="256"
+        cy="256"
+        r="151"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="51"
+        strokeDasharray="751 949"
+        transform="rotate(-90 256 256)"
+      />
+      <circle cx="110" cy="212" r="27" fill="currentColor" />
+    </svg>
+  )
+}
+
 /** Mũi tên xuống — nút mở/thu gọn chi tiết buổi tập. */
 export function IconChevron({ className }: Props) {
   return (

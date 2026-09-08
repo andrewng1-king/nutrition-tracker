@@ -30,8 +30,6 @@ export interface Food {
   /** wide error bar — món ăn ngoài, ước tính ±10-15% */
   estimate?: boolean
   note?: string
-  /** ảnh món ăn — để trống, người dùng tự thêm sau */
-  image?: string
   /** giá tham khảo cho servingSize, VND — điền sẵn khi log */
   cost?: number
 }

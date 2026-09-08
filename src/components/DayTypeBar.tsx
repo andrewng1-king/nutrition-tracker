@@ -1,7 +1,6 @@
 import { useState } from 'react'
-import { n } from '../lib/format'
 import { useBoost, useData } from '../lib/hooks'
-import { computeAdjust, dayTypesFor } from '../lib/macros'
+import { dayTypesFor } from '../lib/macros'
 import { getDay, setTurbo, toggleDayType } from '../lib/storage'
 import type { DayType } from '../lib/types'
 import { IconFlame, IconLift, IconShoe, IconTurbo } from './icons'
@@ -13,20 +12,11 @@ const OPTIONS: [DayType, string, typeof IconShoe, string][] = [
   ['rest', 'Nghỉ', IconFlame, 'var(--muted)'],
 ]
 
-/**
- * Nhãn ngày, bấm cộng dồn được. "Nghỉ" loại trừ hai cái kia.
- * Đây là chỗ duy nhất người dùng chỉnh phần calo cộng/trừ của ngày, nên bên dưới
- * ghi rõ từng khoản thay vì chỉ đưa ra một con số tổng.
- */
+/** Nhãn ngày, bấm cộng dồn được. "Nghỉ" loại trừ hai cái kia. */
 export function DayTypeBar({ date }: { date: string }) {
   const data = useData()
   const day = getDay(date, data)
   const types = dayTypesFor(date, data.settings, day)
-  const adjust = computeAdjust(data.settings, {
-    runDay: types.includes('run'),
-    liftDay: types.includes('lift'),
-    runBurnKcal: day.run?.burnKcal,
-  })
 
   const runOn = types.includes('run')
   const turbo = runOn && Boolean(day.turbo)
@@ -34,21 +24,21 @@ export function DayTypeBar({ date }: { date: string }) {
   // Hiệu ứng "cường hoá" chạy một nhịp mỗi lần turbo vừa được bật.
   const justBoosted = useBoost(turbo)
 
-  const parts: string[] = []
-  if (adjust.run > 0) parts.push(`chạy +${n(adjust.run)}`)
-  parts.push(`${adjust.gym >= 0 ? '+' : '−'}${n(Math.abs(adjust.gym))} phần gym`)
-
   return (
     <div className="col" style={{ gap: 8 }}>
       <div className="daybar" role="group" aria-label="Loại ngày">
         {OPTIONS.map(([key, label, Icon, color]) => {
           const on = types.includes(key)
           const isTurbo = key === 'run' && turbo
+          // Turbo đã gồm buổi thể trọng, nên ngày turbo không xếp thêm buổi tạ.
+          const locked = key === 'lift' && turbo
           const RowIcon = isTurbo ? IconTurbo : Icon
           return (
             <button
               key={key}
               aria-pressed={on}
+              disabled={locked}
+              title={locked ? 'Ngày Turbo đã có buổi thể trọng — không chọn thêm tạ' : undefined}
               data-turbo={isTurbo || undefined}
               data-boost={isTurbo && justBoosted ? 'true' : undefined}
               style={
@@ -74,13 +64,6 @@ export function DayTypeBar({ date }: { date: string }) {
           )
         })}
       </div>
-
-      <p className="dim" style={{ margin: 0 }}>
-        Target {adjust.total >= 0 ? '+' : '−'}
-        {n(Math.abs(adjust.total))} kcal ({parts.join(', ')}). Lịch gym 4-5 buổi/tuần đã
-        nằm trong TDEE, nên ngày tập chỉ cộng phần vượt trung bình còn ngày không tập thì
-        trừ lại.
-      </p>
 
       {asking && (
         <CalisthenicPrompt
@@ -111,8 +94,8 @@ function CalisthenicPrompt({
         Có tập calisthenic không?
       </h2>
       <p className="dim" style={{ margin: 0, textAlign: 'center' }}>
-        Chạy bộ kèm buổi thể trọng sẽ được đánh dấu <b>Turbo</b>. Chỉ là nhãn hiển thị,
-        không đổi target calo — phần calo của buổi tập nằm ở nhãn “Tập tạ”.
+        Chạy bộ kèm buổi thể trọng sẽ được đánh dấu <b>Turbo</b>. Ngày Turbo không chọn
+        thêm buổi tạ phòng gym được nữa.
       </p>
       <div className="grid2" style={{ marginTop: 4 }}>
         <button className="btn full" onClick={() => onPick(false)}>

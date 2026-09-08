@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Sheet } from '../components/Sheet'
+import { FoodIcon } from '../components/foodIcons'
 import { CATEGORY_LABELS, GROUP_LABELS } from '../data/foods'
 import { amountLabel, matchName, n } from '../lib/format'
 import { useData } from '../lib/hooks'
@@ -53,11 +54,7 @@ export function Foods() {
               .filter((f) => f.category === cat)
               .map((f) => (
                 <button key={f.id} className="entry" onClick={() => setEditing(f)}>
-                  {f.image ? (
-                    <img className="thumb" src={f.image} alt="" />
-                  ) : (
-                    <span className="thumb" aria-hidden="true" />
-                  )}
+                  <FoodIcon food={f} />
                   <span className="grow">
                     <span className="row" style={{ gap: 6 }}>
                       <span className="truncate">{f.name}</span>
@@ -214,16 +211,12 @@ function FoodForm({ food, onClose }: { food: Food | null; onClose: () => void })
         <input id="f-sugar" {...num('addedSugar')} />
       </div>
 
-      <div className="field">
-        <label htmlFor="f-image">Ảnh món (URL hoặc data:) — để trống cũng được</label>
-        <input
-          id="f-image"
-          value={f.image ?? ''}
-          onChange={(e) => set('image', e.target.value || undefined)}
-          placeholder="https://…"
-        />
+      <div className="row" style={{ gap: 12 }}>
+        <FoodIcon food={{ id: food?.id ?? '', name: f.name, category: f.category }} />
+        <p className="dim" style={{ margin: 0 }}>
+          Icon lấy tự động theo tên món và nhóm thực phẩm — không cần thêm ảnh.
+        </p>
       </div>
-      {f.image && <img className="thumb lg" src={f.image} alt="" />}
 
       {(f.kcal === 0 || kcalOff) && derivedKcal > 0 && (
         <button className="btn full" onClick={() => set('kcal', derivedKcal)}>

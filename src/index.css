@@ -718,23 +718,276 @@ input[type='number']::-webkit-inner-spin-button {
   margin-bottom: 2px;
 }
 
-/* Ô ảnh món — để trống, người dùng tự thêm ảnh sau */
-.thumb {
+/* Ô icon món — icon suy ra từ món, tô theo màu nhóm thực phẩm. */
+.food-ico {
   width: 44px;
   height: 44px;
-  border-radius: 12px;
+  border-radius: 13px;
   flex: none;
-  background: var(--surface-2);
-  border: 1px dashed var(--line);
-  object-fit: cover;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--tint) 11%, var(--surface-2));
+  border: 1px solid color-mix(in srgb, var(--tint) 22%, transparent);
+  color: var(--tint);
+}
+
+.food-ico svg {
+  width: 24px;
+  height: 24px;
   display: block;
 }
 
-.thumb.lg {
-  width: 100%;
-  height: 116px;
-  border-radius: var(--r-sm);
+.food-ico.sm {
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+}
+
+.food-ico.sm svg {
+  width: 19px;
+  height: 19px;
+}
+
+/* ---------- màn Hôm nay: hai cột 5/5 ---------- */
+
+/* Khoảng thở giữa tiêu đề ngày và phần số liệu — hai khối này thuộc hai tầng
+   thông tin khác nhau, dính sát vào nhau đọc như một khối. */
+.today-head {
   margin-bottom: 10px;
+}
+
+/* Chi tiêu ăn uống bên trái, bốn bữa bên phải. Cột chia đôi đều: cả hai bên
+   đều là thứ phải liếc qua mỗi lần mở app, không bên nào phụ. */
+.today-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.today-split > * {
+  min-width: 0;
+}
+
+/* Vòng chi tiêu trong cột nửa màn hình: bỏ trần 260px cho nó lấp đầy cột, và
+   thu chữ ở giữa lại — lỗ vòng bây giờ chỉ rộng bằng nửa lúc ở thẻ full-width. */
+.today-split .spend-ring {
+  max-width: none;
+}
+
+.today-split .spend-total {
+  font-size: 17px;
+}
+
+.today-split .spend-cap {
+  font-size: 8px;
+  letter-spacing: 0.1em;
+}
+
+.today-split .spend-rows {
+  margin-top: 10px;
+  font-size: 12px;
+}
+
+.today-split .spend-row {
+  gap: 7px;
+  padding: 4px 0;
+}
+
+.today-split .spend-pct {
+  min-width: 34px;
+}
+
+.today-meals {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.meal-card {
+  padding: 12px;
+}
+
+.meal-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 0;
+  min-height: 34px;
+}
+
+.meal-card-name {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.meal-card-kcal {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* Phần trăm từng chất trong bữa: chữ tô đúng màu nhận diện của chất đó, giống
+   màu icon ở vòng macro — không cần chú thích riêng cho bảng màu. */
+.meal-pcts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-top: 8px;
+}
+
+.meal-pct {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--tint);
+}
+
+.meal-card-detail {
+  margin-top: 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 4px;
+}
+
+.meal-card-cost {
+  margin-top: 10px;
+  font-size: 12.5px;
+}
+
+.meal-card .entry {
+  gap: 9px;
+  padding: 9px 0;
+  font-size: 13.5px;
+}
+
+.meal-card .entry-kcal {
+  font-size: 12.5px;
+}
+
+/* ---------- thẻ ví ---------- */
+
+/* Dựng như một chiếc thẻ ngân hàng: mặt tối, viền sáng mảnh ở mép trên bắt
+   sáng, logo app dập nổi. Đây là con số duy nhất người dùng mở tab Ví để xem. */
+.bankcard {
+  position: relative;
+  overflow: hidden;
+  border-radius: 22px;
+  padding: 18px 18px 16px;
+  color: var(--on-ink);
+  background:
+    radial-gradient(120% 130% at 8% -20%, rgba(200, 255, 77, 0.13), transparent 58%),
+    linear-gradient(158deg, #23271f 0%, #141813 46%, #0b0d0a 100%);
+  border: 1px solid #2c3128;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 14px 34px rgba(0, 0, 0, 0.5);
+}
+
+.bankcard-top {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 22px;
+}
+
+.bankcard-mark {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--lime);
+  background: rgba(200, 255, 77, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(200, 255, 77, 0.24);
+}
+
+.bankcard-mark svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.bankcard-brand {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--on-ink-dim);
+  flex: 1;
+  min-width: 0;
+}
+
+/* Chip vàng của thẻ — chi tiết duy nhất được phép "trang trí", vì nó là thứ
+   khiến khối này đọc ra là cái thẻ chứ không phải một cái card thường. */
+.bankcard-chip {
+  width: 30px;
+  height: 23px;
+  flex: none;
+  border-radius: 6px;
+  background: linear-gradient(140deg, #e7cf8b 0%, #b99a4e 55%, #8e7434 100%);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.28);
+  position: relative;
+}
+
+.bankcard-chip::after {
+  content: '';
+  position: absolute;
+  inset: 4px 6px;
+  border: 1px solid rgba(0, 0, 0, 0.3);
+  border-radius: 2px;
+}
+
+.bankcard-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--on-ink-dim);
+}
+
+.bankcard-amount {
+  font-size: clamp(30px, 9.4vw, 40px);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+  margin-top: 2px;
+  white-space: nowrap;
+}
+
+.bankcard-amount-tail {
+  color: color-mix(in srgb, var(--on-ink-dim) 82%, transparent);
+}
+
+.bankcard-sub {
+  margin-top: 4px;
+  font-size: 12.5px;
+  color: var(--on-ink-dim);
+}
+
+.bankcard-foot {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.bankcard-metric > :first-child {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.bankcard-metric > :last-child {
+  font-size: 11px;
+  color: var(--on-ink-dim);
 }
 
 /* ---------- week chart ---------- */
@@ -859,6 +1112,13 @@ input[type='number']::-webkit-inner-spin-button {
   color: var(--tint, var(--lime));
   box-shadow: inset 0 0 0 1px currentColor;
   font-weight: 700;
+}
+
+/* Ngày Turbo đã gồm buổi thể trọng nên nút "Tập tạ" bị khoá — vẫn giữ nguyên
+   chỗ để thanh không nhảy cột, chỉ mờ đi và không bấm được. */
+.daybar button:disabled {
+  opacity: 0.34;
+  cursor: not-allowed;
 }
 
 .daybar .ico {
@@ -1193,18 +1453,21 @@ input[type='number']::-webkit-inner-spin-button {
 
 .spend-center {
   position: absolute;
-  inset: 0;
+  /* thụt vào bằng bề rộng vành: chữ chỉ được dùng phần lỗ giữa, không tràn ra
+     đè lên cung màu khi vòng bị co lại trong cột hẹp */
+  inset: 18%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 2px;
   pointer-events: none;
+  text-align: center;
 }
 
-/* Lỗ giữa vành chỉ rộng ~48% đường kính, chữ phải vừa chỗ đó chứ không đè lên vành. */
+/* Vành mảnh nên lỗ giữa rộng — chữ ở giữa được phép lớn hơn trước. */
 .spend-cap {
-  font-size: 9px;
+  font-size: 9.5px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.14em;
@@ -1212,9 +1475,9 @@ input[type='number']::-webkit-inner-spin-button {
 }
 
 .spend-total {
-  font-size: 16px;
+  font-size: 21px;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
 }
 
 /* Danh sách bên dưới vòng: ô màu, tên bữa, số tiền, tỉ lệ — mỗi bữa một dòng
@@ -1233,6 +1496,19 @@ input[type='number']::-webkit-inner-spin-button {
   font-size: 13px;
   font-weight: 500;
   padding: 5px 2px;
+}
+
+/* Tên bữa nhường chỗ cho số tiền: trong cột hẹp, số phải đọc được nguyên vẹn
+   còn tên thì cắt bớt cũng vẫn đoán ra. */
+.spend-row > .grow {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spend-row .num {
+  white-space: nowrap;
 }
 
 .spend-dot {
@@ -1802,6 +2078,18 @@ input[type='number']::-webkit-inner-spin-button {
   .mini-ico {
     width: 11px;
     height: 11px;
+  }
+
+  .today-split {
+    gap: 8px;
+  }
+
+  .today-split .card {
+    padding: 12px;
+  }
+
+  .meal-card {
+    padding: 10px;
   }
 
   .mini-val {

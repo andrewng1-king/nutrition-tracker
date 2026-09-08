@@ -78,6 +78,14 @@ export function dayTypesFor(
   settings: Settings,
   day?: DayLog,
 ): DayType[] {
+  const raw = rawDayTypes(dateStr, settings, day)
+  // Turbo đã là buổi thể trọng của ngày chạy, và ngày Turbo thì không xếp thêm
+  // buổi tạ phòng gym. Lọc ở đây để dữ liệu cũ (hoặc dữ liệu mẫu) từng ghi cả
+  // hai nhãn vẫn đọc ra đúng một trạng thái.
+  return day?.turbo ? raw.filter((t) => t !== 'lift') : raw
+}
+
+function rawDayTypes(dateStr: string, settings: Settings, day?: DayLog): DayType[] {
   if (day?.dayTypes) return day.dayTypes
 
   const out: DayType[] = []

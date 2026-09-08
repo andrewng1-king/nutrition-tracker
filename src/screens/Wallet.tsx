@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { ExpenseGauge } from '../components/ExpenseGauge'
+import { IconLogo } from '../components/icons'
 import { dayLabel, shortDate, vnd, vndShort } from '../lib/format'
 import { useData } from '../lib/hooks'
 import { dateKey } from '../lib/macros'
@@ -52,25 +53,14 @@ export function Wallet({ onOpenDay }: { onOpenDay: (date: string) => void }) {
     <div className="screen">
       <h1 className="h1">Ví tiền</h1>
 
-      <div className="card ink">
-        <div className="h2">Tổng đã chi cho ăn uống</div>
-        <div
-          className="num"
-          style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-0.035em' }}
-        >
-          {vnd(w.total)}
-        </div>
-        <p className="muted" style={{ margin: '4px 0 0' }}>
-          {w.daysWithSpend} ngày có chi
-          {w.firstDate ? `, từ ${shortDate(w.firstDate)}` : ''}.
-        </p>
-
-        <div className="grid3" style={{ marginTop: 18, textAlign: 'center' }}>
-          <Metric label="hôm nay" value={vndShort(w.today)} />
-          <Metric label="tuần này" value={vndShort(w.week)} />
-          <Metric label="tháng này" value={vndShort(w.month)} />
-        </div>
-      </div>
+      <BankCard
+        total={w.total}
+        today={w.today}
+        week={w.week}
+        month={w.month}
+        days={w.daysWithSpend}
+        firstDate={w.firstDate}
+      />
 
       <div className="grid2">
         <div className="card">
@@ -228,6 +218,76 @@ export function Wallet({ onOpenDay }: { onOpenDay: (date: string) => void }) {
           ngày, nên món nào hạ được chỉ số này sẽ tiết kiệm nhiều nhất về lâu dài.
         </p>
       </section>
+    </div>
+  )
+}
+
+/**
+ * Số tiền cắt làm hai: nhóm nghìn cuối và ký hiệu ₫ mờ đi. Cùng một con số
+ * nhưng mắt bắt được bậc độ lớn trước, giống cách thẻ ngân hàng tách phần lẻ.
+ */
+function splitAmount(value: number): [string, string] {
+  const s = Math.round(value).toLocaleString('vi-VN')
+  const i = s.lastIndexOf('.')
+  return i < 0 ? [s, ''] : [s.slice(0, i), s.slice(i)]
+}
+
+/**
+ * Thẻ tổng chi, dựng theo hình một chiếc thẻ ngân hàng thật: mặt tối, logo app
+ * dập nổi ở góc, số tiền là dòng lớn nhất. Đây là con số người dùng mở tab Ví
+ * để xem, nên nó được cầm một thẻ riêng thay vì nằm chung với các ô thống kê.
+ */
+function BankCard({
+  total,
+  today,
+  week,
+  month,
+  days,
+  firstDate,
+}: {
+  total: number
+  today: number
+  week: number
+  month: number
+  days: number
+  firstDate?: string
+}) {
+  const [head, tail] = splitAmount(total)
+  return (
+    <div className="bankcard">
+      <div className="bankcard-top">
+        <span className="bankcard-mark">
+          <IconLogo />
+        </span>
+        <span className="bankcard-brand">Nutrition Tracker</span>
+        <span className="bankcard-chip" aria-hidden="true" />
+      </div>
+
+      <div className="bankcard-label">Tổng đã chi cho ăn uống</div>
+      <div className="bankcard-amount num">
+        {head}
+        <span className="bankcard-amount-tail">
+          {tail} ₫
+        </span>
+      </div>
+      <div className="bankcard-sub">
+        {days} ngày có chi{firstDate ? ` · từ ${shortDate(firstDate)}` : ''}
+      </div>
+
+      <div className="bankcard-foot">
+        <CardMetric label="hôm nay" value={vndShort(today)} />
+        <CardMetric label="tuần này" value={vndShort(week)} />
+        <CardMetric label="tháng này" value={vndShort(month)} />
+      </div>
+    </div>
+  )
+}
+
+function CardMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bankcard-metric">
+      <div className="num">{value}</div>
+      <div>{label}</div>
     </div>
   )
 }

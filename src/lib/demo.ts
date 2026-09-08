@@ -223,8 +223,8 @@ function buildDay(date: string, plan: Plan, cheatDay: boolean, weightKg: number)
   }
 
   if (plan === 'run-turbo') {
-    // Ngày chạy có kèm buổi thể trọng — đúng trường hợp cờ `turbo` sinh ra để đánh dấu.
-    types.push('lift')
+    // Ngày chạy có kèm buổi thể trọng — đúng trường hợp cờ `turbo` sinh ra để
+    // đánh dấu. Không gắn thêm nhãn 'lift': ngày Turbo loại trừ buổi tạ.
     day.turbo = true
     day.lifts = liftsFor('calisthenic', undefined, ts + 12 * 3600_000)
   }

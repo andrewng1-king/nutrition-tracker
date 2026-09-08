@@ -11,6 +11,8 @@ import {
 } from '../lib/run'
 import { getDay, setDayField } from '../lib/storage'
 import type { RunLog } from '../lib/types'
+import { IconTurbo } from './icons'
+import { Popup } from './Popup'
 import { Sheet } from './Sheet'
 
 export function RunSheet({ date, onClose }: { date: string; onClose: () => void }) {
@@ -26,6 +28,7 @@ export function RunSheet({ date, onClose }: { date: string; onClose: () => void 
   const [source, setSource] = useState<RunLog['source']>(existing?.source ?? 'manual')
   const [fileName, setFileName] = useState(existing?.fileName)
   const [error, setError] = useState<string | null>(null)
+  const [confirming, setConfirming] = useState(false)
 
   const durationSec = parseDuration(duration)
   const burn = runBurnKcal(distance, data.settings.weightKg)
@@ -59,9 +62,36 @@ export function RunSheet({ date, onClose }: { date: string; onClose: () => void 
     onClose()
   }
 
-  function clearRun() {
-    setDayField(date, { isRunDay: false, run: undefined })
-    onClose()
+  // Buổi chạy đã nhập là chốt — mở lại chỉ để xem, không sửa và không xoá được.
+  if (existing) {
+    return (
+      <Sheet title="Buổi chạy" onClose={onClose}>
+        <div className="card ink">
+          <div className="grid4" style={{ textAlign: 'center' }}>
+            <Stat label="km" value={n(existing.distanceKm, 2)} />
+            <Stat label="pace" value={formatPace(paceSecPerKm(existing))} />
+            <Stat
+              label="thời gian"
+              value={existing.durationSec > 0 ? formatDuration(existing.durationSec) : '—'}
+            />
+            <Stat label="đốt" value={n(existing.burnKcal ?? 0)} unit="kcal" />
+          </div>
+          {existing.elevationM ? (
+            <p className="muted" style={{ margin: '12px 0 0' }}>
+              Độ cao tích luỹ {n(existing.elevationM)} m
+              {existing.fileName ? ` · từ file ${existing.fileName}` : ''}.
+            </p>
+          ) : null}
+        </div>
+        <p className="dim" style={{ margin: 0 }}>
+          Kết quả buổi chạy đã lưu nên không sửa được nữa — con số này là mốc so sánh
+          tiến bộ, sửa lại sau khi biết kết quả sẽ làm hỏng cả chuỗi dữ liệu.
+        </p>
+        <button className="btn primary full" onClick={onClose}>
+          Đóng
+        </button>
+      </Sheet>
+    )
   }
 
   return (
@@ -150,24 +180,44 @@ export function RunSheet({ date, onClose }: { date: string; onClose: () => void 
         </p>
       </div>
 
-      <button className="btn primary full" disabled={!valid} onClick={save}>
+      <button
+        className="btn primary full"
+        disabled={!valid}
+        onClick={() => setConfirming(true)}
+      >
         Lưu buổi chạy
       </button>
 
-      {existing ? (
-        <button className="btn danger full" onClick={clearRun}>
-          Xoá buổi chạy, bỏ đánh dấu ngày chạy
-        </button>
-      ) : (
-        <button
-          className="btn full"
-          onClick={() => {
-            setDayField(date, { isRunDay: true })
-            onClose()
-          }}
-        >
-          Chỉ đánh dấu ngày chạy, chưa nhập số
-        </button>
+      <button
+        className="btn full"
+        onClick={() => {
+          setDayField(date, { isRunDay: true })
+          onClose()
+        }}
+      >
+        Chỉ đánh dấu ngày chạy, chưa nhập số
+      </button>
+
+      {confirming && (
+        <Popup label="Xác nhận lưu buổi chạy" onClose={() => setConfirming(false)}>
+          <IconTurbo className="popup-ico" />
+          <h2 className="h2" style={{ textAlign: 'center' }}>
+            Chắc chưa?
+          </h2>
+          <p className="dim" style={{ margin: 0, textAlign: 'center' }}>
+            Lưu <b>{n(distance, 2)} km</b>
+            {durationSec > 0 ? ` · ${formatDuration(durationSec)}` : ''} · đốt{' '}
+            <b>{n(burn)} kcal</b>. Sau khi lưu sẽ không sửa hay xoá lại được.
+          </p>
+          <div className="grid2" style={{ marginTop: 4 }}>
+            <button className="btn full" onClick={() => setConfirming(false)}>
+              Quay lại
+            </button>
+            <button className="btn primary full" onClick={save}>
+              Lưu luôn
+            </button>
+          </div>
+        </Popup>
       )}
     </Sheet>
   )
