@@ -1,19 +1,23 @@
-import { MEAL_LABELS, MEAL_ORDER, vnd } from '../lib/format'
+import { MEAL_LABELS, MEAL_ORDER, n, vnd } from '../lib/format'
 import type { MealSlot } from '../lib/types'
 
 export const MEAL_COLORS: Record<MealSlot, string> = {
-  sang: '#c8ff4d',
-  trua: '#35d07f',
+  sang: '#ff6b2c',
+  trua: '#2e8bff',
   toi: '#ffb020',
-  snack: '#5f6e5e',
+  snack: '#35e08d',
 }
 
-const SIZE = 220
-const THICK = 20
-const R = (SIZE - THICK) / 2
+const SIZE = 200
 const CX = SIZE / 2
 const CY = SIZE / 2
-const GAP = 0.035 // radian giữa các cung
+const THICK = 20
+/** để chừa chỗ cho quầng sáng — bán kính ngoài phải nhỏ hơn nửa khung */
+const R = 78
+/** khoảng hở giữa hai cung, radian. Đầu cung bo tròn đã ăn ~0,13 rad mỗi bên. */
+const GAP = 0.38
+const TAU = Math.PI * 2
+const START = -Math.PI / 2 // 12 giờ
 
 function polar(angle: number) {
   return { x: CX + R * Math.cos(angle), y: CY + R * Math.sin(angle) }
@@ -27,8 +31,11 @@ function arcPath(from: number, to: number) {
 }
 
 /**
- * Đồng hồ nửa vòng chia theo bữa — kiểu thẻ Expenses của bản tham chiếu.
- * Mỗi cung dài theo tỉ lệ tiền của bữa đó trong tổng chi của ngày.
+ * Vòng tròn chia theo bữa. Mỗi cung dài theo tỉ lệ tiền của bữa đó trong tổng
+ * chi, tách nhau bằng khoảng hở và có quầng sáng cùng màu.
+ *
+ * Vòng đầy chứ không phải nửa vòng: bốn bữa trên nửa vòng thì cung của bữa nhỏ
+ * ngắn hơn cả khoảng hở, nhìn ra chấm chứ không ra tỉ lệ.
  */
 export function ExpenseGauge({
   byMeal,
@@ -37,76 +44,74 @@ export function ExpenseGauge({
   byMeal: Record<MealSlot, number>
   total: number
 }) {
-  const START = Math.PI // 9 giờ
-  const SWEEP = Math.PI // nửa vòng trên
   const meals = MEAL_ORDER.filter((m) => byMeal[m] > 0)
 
   let cursor = START
   const segments = meals.map((meal) => {
     const share = byMeal[meal] / total
     const from = cursor
-    const to = cursor + share * SWEEP
+    const to = cursor + share * TAU
     cursor = to
-    return { meal, from, to }
+    return { meal, share, from, to }
   })
 
+  // Một bữa duy nhất: cung dài trọn vòng, `A` không vẽ được cung 360° vì điểm
+  // đầu trùng điểm cuối — dùng thẳng hình tròn.
+  const single = segments.length === 1
+
   return (
-    <div>
-      <div style={{ position: 'relative' }}>
+    <div className="spend">
+      <div className="spend-ring">
         <svg
-          viewBox={`0 0 ${SIZE} ${SIZE / 2 + THICK}`}
-          style={{ width: '100%', display: 'block' }}
+          viewBox={`0 0 ${SIZE} ${SIZE}`}
           role="img"
           aria-label={`Chi tiêu ăn uống: ${vnd(total)}`}
         >
-          <path
-            d={arcPath(START, START + SWEEP)}
-            stroke="var(--surface-3)"
-            strokeWidth={THICK}
-            strokeLinecap="round"
-            fill="none"
-          />
-          {segments.map(({ meal, from, to }) => (
-            <path
-              key={meal}
-              d={arcPath(from + GAP / 2, Math.max(from + GAP / 2 + 0.01, to - GAP / 2))}
-              stroke={MEAL_COLORS[meal]}
-              strokeWidth={THICK}
-              strokeLinecap="round"
+          {single ? (
+            <circle
+              cx={CX}
+              cy={CY}
+              r={R}
               fill="none"
+              stroke={MEAL_COLORS[segments[0].meal]}
+              strokeWidth={THICK}
+              style={{ filter: `drop-shadow(0 0 7px ${MEAL_COLORS[segments[0].meal]})` }}
             />
-          ))}
+          ) : (
+            segments.map(({ meal, from, to }) => (
+              <path
+                key={meal}
+                d={arcPath(from + GAP / 2, Math.max(from + GAP / 2 + 0.01, to - GAP / 2))}
+                stroke={MEAL_COLORS[meal]}
+                strokeWidth={THICK}
+                strokeLinecap="round"
+                fill="none"
+                style={{ filter: `drop-shadow(0 0 7px ${MEAL_COLORS[meal]})` }}
+              />
+            ))
+          )}
         </svg>
 
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'flex-end',
-            paddingBottom: 4,
-            pointerEvents: 'none',
-          }}
-        >
-          <span className="h2">Đã chi</span>
-          <span
-            className="num"
-            style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em' }}
-          >
-            {vnd(total)}
-          </span>
+        <div className="spend-center">
+          <span className="spend-cap">Đã chi</span>
+          <span className="num spend-total">{vnd(total)}</span>
         </div>
       </div>
 
-      <div className="spend-legend">
-        {MEAL_ORDER.map((meal) => (
-          <span key={meal} className="spend-tag">
-            <i className="swatch" style={{ background: MEAL_COLORS[meal] }} />
-            {MEAL_LABELS[meal]}
-            <b className="num">{byMeal[meal] > 0 ? vnd(byMeal[meal]) : '—'}</b>
-          </span>
+      <div className="spend-rows">
+        {segments.map(({ meal, share }) => (
+          <div key={meal} className="spend-row">
+            <i
+              className="spend-dot"
+              style={{
+                background: MEAL_COLORS[meal],
+                boxShadow: `0 0 8px ${MEAL_COLORS[meal]}`,
+              }}
+            />
+            <span className="grow">{MEAL_LABELS[meal]}</span>
+            <span className="dim num">{vnd(byMeal[meal])}</span>
+            <b className="num spend-pct">{n(share * 100)}%</b>
+          </div>
         ))}
       </div>
     </div>

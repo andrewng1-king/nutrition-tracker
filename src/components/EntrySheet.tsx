@@ -3,6 +3,7 @@ import { MEAL_LABELS, MEAL_ORDER, n } from '../lib/format'
 import { macrosFor } from '../lib/macros'
 import { removeEntry, updateEntry } from '../lib/storage'
 import type { Entry, Food, MealSlot } from '../lib/types'
+import { NumberInput } from './NumberInput'
 import { Sheet } from './Sheet'
 
 interface Props {
@@ -51,13 +52,12 @@ export function EntrySheet({ date, entry, food, onClose }: Props) {
           −
         </button>
         <div className="grow">
-          <input
-            type="number"
+          <NumberInput
             inputMode="decimal"
             value={amount}
             min={0}
             step={step}
-            onChange={(e) => setAmount(Math.max(0, Number(e.target.value)))}
+            onChange={setAmount}
             aria-label={`Số lượng (${food.servingUnit})`}
           />
           <div className="dim" style={{ textAlign: 'center', marginTop: 4 }}>
@@ -90,14 +90,14 @@ export function EntrySheet({ date, entry, food, onClose }: Props) {
 
       <div className="field">
         <label htmlFor="entry-cost">Giá tiền (₫)</label>
-        <input
+        <NumberInput
           id="entry-cost"
-          type="number"
           inputMode="numeric"
-          step="1000"
-          value={cost || ''}
+          step={1000}
+          value={cost}
+          blankZero
           placeholder="0"
-          onChange={(e) => setCost(Math.max(0, Number(e.target.value)))}
+          onChange={setCost}
         />
       </div>
 

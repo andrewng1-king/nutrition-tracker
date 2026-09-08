@@ -875,12 +875,24 @@ input[type='number']::-webkit-inner-spin-button {
   position: relative;
   overflow: hidden;
   color: #2a1403;
-  background: var(--grad-turbo);
+  /* màu nền đặc trước, gradient sau: máy không đọc được gradient vẫn ra nút cam */
+  background-color: #ff9d2e;
+  background-image: var(--grad-turbo);
   box-shadow:
     inset 0 0 0 1px rgba(255, 209, 102, 0.65),
     0 0 16px -4px rgba(255, 122, 46, 0.75);
   font-weight: 700;
   animation: turbo-idle 2.6s ease-in-out infinite;
+}
+
+/* Chữ + icon nằm trên vệt sáng quét, không bị nó phủ nhoè. */
+.daybar-face {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
 /* Vệt sáng quét ngang một lần khi vừa kích hoạt — dấu hiệu "vừa được cường hoá" */
@@ -920,64 +932,58 @@ input[type='number']::-webkit-inner-spin-button {
   animation: label-swap 0.45s 0.05s ease-out backwards;
 }
 
-.turbo-note {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 9px 12px;
-  border-radius: var(--r-sm);
-  font-size: 12px;
-  color: var(--turbo);
-  border: 1px solid color-mix(in srgb, var(--turbo) 32%, transparent);
-  background: color-mix(in srgb, var(--turbo) 10%, transparent);
-}
-
-.turbo-note .ico {
-  width: 16px;
-  height: 16px;
-  flex: none;
-}
-
-.turbo-note[data-boost='true'] {
-  animation: turbo-slide 0.4s cubic-bezier(0.2, 0.9, 0.3, 1);
-}
-
-.turbo-note[data-boost='true'] .turbo-needle {
-  animation: needle-sweep 0.9s cubic-bezier(0.2, 1.4, 0.35, 1);
-}
-
-/* Thẻ "Buổi chạy" được cường hoá: viền gradient cam thay cho viền xám thường.
-   Dùng lớp phủ ::before để giữ nền thẻ đặc, gradient chỉ ăn vào phần viền 1px. */
+/* Thẻ được cường hoá: viền gradient cam thay cho viền xám thường.
+   Viền vẽ bằng hai lớp background (`padding-box` + `border-box`) chứ không phải
+   `mask-composite`: Safari trên iOS dựng lớp mask thành một layer riêng rồi bỏ
+   qua animation của nó, viền turbo mất hẳn trên điện thoại. */
 .card-turbo {
   position: relative;
-  border-color: transparent;
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--surface), var(--surface)) padding-box,
+    var(--grad-turbo) border-box;
   box-shadow:
     var(--shadow),
     0 0 22px -10px rgba(255, 122, 46, 0.55);
 }
 
-.card-turbo::before {
+/* Thẻ HUD nền đậm hơn — giữ nguyên gradient nền của nó, chỉ thay phần viền. */
+.card.ink.card-turbo {
+  border-color: transparent;
+  background:
+    linear-gradient(165deg, var(--ink-2) 0%, var(--ink) 60%) padding-box,
+    var(--grad-turbo) border-box;
+}
+
+/* Nhịp thở của thẻ chạy bằng `opacity` — trình duyệt điện thoại chạy nó trên
+   compositor, không bị bỏ qua như animation của filter/mask. */
+.card-turbo::after {
   content: '';
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  padding: 1px;
-  background: var(--grad-turbo);
-  -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  mask-composite: exclude;
   pointer-events: none;
-  animation: turbo-idle 2.6s ease-in-out infinite;
+  box-shadow: inset 0 0 26px -10px var(--turbo);
+  opacity: 0.4;
+  animation: turbo-breathe 2.6s ease-in-out infinite;
+}
+
+/* Thẻ buổi tập không thuộc ngày này: vẫn hiện đủ ba loại nhưng mờ và khoá lại. */
+.card-off {
+  opacity: 0.42;
+  filter: saturate(0.35);
+  pointer-events: none;
 }
 
 @keyframes turbo-idle {
   50% {
     filter: brightness(1.12);
+  }
+}
+
+@keyframes turbo-breathe {
+  50% {
+    opacity: 0.95;
   }
 }
 
@@ -993,13 +999,6 @@ input[type='number']::-webkit-inner-spin-button {
 @keyframes turbo-sweep {
   to {
     transform: translateX(120%);
-  }
-}
-
-@keyframes turbo-slide {
-  from {
-    opacity: 0;
-    transform: translateY(-6px);
   }
 }
 
@@ -1022,18 +1021,29 @@ input[type='number']::-webkit-inner-spin-button {
   }
 }
 
-/* Hiệu ứng cường hoá là trang trí — máy bật "giảm chuyển động" thì bỏ hết,
-   trạng thái turbo vẫn đọc được qua màu, icon và chữ. */
+/* Một lần loé sáng, không có chuyển động — bản thay thế khi máy xin giảm
+   chuyển động. iPhone ở chế độ tiết kiệm pin cũng bật cờ này, nên nếu ở đây tắt
+   sạch animation thì trên điện thoại turbo gần như không có phản hồi gì. */
+@keyframes turbo-flash {
+  0% {
+    filter: brightness(1.55);
+  }
+  100% {
+    filter: brightness(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .daybar button[data-turbo],
-  .daybar button[data-boost='true'],
   .daybar button[data-boost='true']::after,
   .daybar button[data-boost='true'] .turbo-needle,
-  .daybar button[data-boost='true'] .daybar-label,
-  .turbo-note[data-boost='true'],
-  .turbo-note[data-boost='true'] .turbo-needle,
-  .card-turbo::before {
+  .daybar button[data-boost='true'] .daybar-label {
     animation: none;
+  }
+
+  .daybar button[data-boost='true'],
+  .card-turbo::after {
+    animation: turbo-flash 0.7s ease-out;
   }
 }
 
@@ -1165,6 +1175,76 @@ input[type='number']::-webkit-inner-spin-button {
   height: 2px;
   border-radius: 999px;
   background: var(--lime);
+}
+
+/* ---------- vòng chi tiêu ---------- */
+
+.spend-ring {
+  position: relative;
+  width: 100%;
+  max-width: 260px;
+  margin: 4px auto 0;
+}
+
+.spend-ring svg {
+  width: 100%;
+  display: block;
+}
+
+.spend-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  pointer-events: none;
+}
+
+.spend-cap {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--dim);
+}
+
+.spend-total {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+/* Danh sách bên dưới vòng: ô màu, tên bữa, số tiền, tỉ lệ — mỗi bữa một dòng
+   để cột tỉ lệ thẳng hàng, đọc nhanh hơn hàng chip cuốn dòng. */
+.spend-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 16px;
+}
+
+.spend-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 5px 2px;
+}
+
+.spend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+}
+
+.spend-pct {
+  min-width: 44px;
+  text-align: right;
+  font-weight: 700;
 }
 
 .spend-legend {

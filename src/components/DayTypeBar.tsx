@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { n } from '../lib/format'
-import { useData } from '../lib/hooks'
+import { useBoost, useData } from '../lib/hooks'
 import { computeAdjust, dayTypesFor } from '../lib/macros'
 import { getDay, setTurbo, toggleDayType } from '../lib/storage'
 import type { DayType } from '../lib/types'
@@ -31,14 +31,8 @@ export function DayTypeBar({ date }: { date: string }) {
   const runOn = types.includes('run')
   const turbo = runOn && Boolean(day.turbo)
   const [asking, setAsking] = useState(false)
-  // Chỉ chạy hiệu ứng "cường hoá" ngay lúc bật, không chạy lại mỗi lần render lại.
-  const [justBoosted, setJustBoosted] = useState(false)
-
-  useEffect(() => {
-    if (!justBoosted) return
-    const t = setTimeout(() => setJustBoosted(false), 1100)
-    return () => clearTimeout(t)
-  }, [justBoosted])
+  // Hiệu ứng "cường hoá" chạy một nhịp mỗi lần turbo vừa được bật.
+  const justBoosted = useBoost(turbo)
 
   const parts: string[] = []
   if (adjust.run > 0) parts.push(`chạy +${n(adjust.run)}`)
@@ -72,21 +66,14 @@ export function DayTypeBar({ date }: { date: string }) {
                 toggleDayType(date, key, types)
               }}
             >
-              <RowIcon className="ico" />
-              <span className="daybar-label">{isTurbo ? 'Turbo' : label}</span>
+              <span className="daybar-face">
+                <RowIcon className="ico" />
+                <span className="daybar-label">{isTurbo ? 'Turbo' : label}</span>
+              </span>
             </button>
           )
         })}
       </div>
-
-      {turbo && (
-        <div className="turbo-note" data-boost={justBoosted ? 'true' : undefined}>
-          <IconTurbo className="ico" />
-          <span>
-            <b>Turbo</b> — chạy bộ + calisthenic trong cùng một ngày.
-          </span>
-        </div>
-      )}
 
       <p className="dim" style={{ margin: 0 }}>
         Target {adjust.total >= 0 ? '+' : '−'}
@@ -100,10 +87,7 @@ export function DayTypeBar({ date }: { date: string }) {
           onPick={(withCalisthenic) => {
             setAsking(false)
             toggleDayType(date, 'run', types)
-            if (withCalisthenic) {
-              setTurbo(date, true)
-              setJustBoosted(true)
-            }
+            if (withCalisthenic) setTurbo(date, true)
           }}
           onCancel={() => setAsking(false)}
         />

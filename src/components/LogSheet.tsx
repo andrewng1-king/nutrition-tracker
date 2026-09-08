@@ -5,6 +5,7 @@ import { useData } from '../lib/hooks'
 import { macrosFor } from '../lib/macros'
 import { addEntry, allFoods, applyTemplate, suggestedCost } from '../lib/storage'
 import type { Food, MealSlot } from '../lib/types'
+import { NumberInput } from './NumberInput'
 import { Sheet } from './Sheet'
 
 const GRAM_PRESETS = [50, 100, 150, 200, 250]
@@ -305,13 +306,12 @@ function AmountStep({
           −
         </button>
         <div className="grow">
-          <input
-            type="number"
+          <NumberInput
             inputMode="decimal"
             value={amount}
             min={0}
             step={step}
-            onChange={(e) => setAmountAndCost(Math.max(0, Number(e.target.value)))}
+            onChange={setAmountAndCost}
             aria-label={`Số lượng (${food.servingUnit})`}
           />
           <div className="dim" style={{ textAlign: 'center', marginTop: 4 }}>
@@ -342,15 +342,15 @@ function AmountStep({
 
       <div className="field">
         <label htmlFor="log-cost">Giá tiền (₫) — bỏ trống nếu không tính</label>
-        <input
+        <NumberInput
           id="log-cost"
-          type="number"
           inputMode="numeric"
-          step="1000"
-          value={cost || ''}
+          step={1000}
+          value={cost}
+          blankZero
           placeholder="0"
-          onChange={(e) => {
-            setCost(Math.max(0, Number(e.target.value)))
+          onChange={(v) => {
+            setCost(v)
             setCostEdited(true)
           }}
         />
