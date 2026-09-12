@@ -41,11 +41,42 @@ nằm sai chỗ. Gõ mã thì đăng nhập ngay trong app.
    Phải có `{{ .Token }}` thì email mới có mã. Template mặc định chỉ có link.
 
 Lưu ý về email: dịch vụ gửi mail có sẵn của Supabase **chỉ gửi tới email của thành viên trong
-project** (chính là email bạn dùng đăng ký Supabase) và giới hạn vài email mỗi giờ. Đăng nhập
-bằng đúng email đó là chạy. Muốn dùng email khác thì cấu hình SMTP riêng ở
-**Authentication → Emails → SMTP Settings** (VD Resend, Brevo).
+project** (chính là email bạn dùng đăng ký Supabase) và giới hạn 2 email mỗi giờ. Đăng nhập
+bằng đúng email đó là chạy ngay, bỏ qua được mục 4. Email khác sẽ báo
+`Error sending confirmation email` → làm mục 4.
 
-## 4. Lấy URL và key
+## 4. SMTP riêng (nếu muốn dùng email khác)
+
+Mail có sẵn của Supabase chỉ để thử. Gắn Resend vào là gửi được tới email bạn muốn, hạn mức
+3000 mail/tháng, miễn phí, không cần có tên miền riêng.
+
+1. Vào <https://resend.com> → **Sign up**. **Đăng ký bằng đúng email bạn sẽ dùng để đăng nhập app**
+   (VD `abc@gmail.com`) — quan trọng, lý do ở ghi chú dưới.
+2. Vào **API Keys** → **Create API Key**. Quyền **Sending access** là đủ. Copy key `re_…`, chỉ hiện
+   một lần.
+3. Về Supabase → **Authentication → Emails → SMTP Settings** → bật **Enable Custom SMTP**, điền:
+
+   | Ô | Điền |
+   |---|---|
+   | Sender email | `onboarding@resend.dev` |
+   | Sender name | `Nutrition Tracker` |
+   | Host | `smtp.resend.com` |
+   | Port | `465` |
+   | Username | `resend` |
+   | Password | key `re_…` ở bước 2 |
+
+4. **Save**.
+5. **Authentication → Rate Limits** → mục gửi email: mặc định 30/giờ, để nguyên là được.
+
+> **Vì sao phải đăng ký Resend bằng chính email đó:** khi chưa xác minh tên miền riêng, Resend chỉ
+> cho gửi từ `onboarding@resend.dev` **tới địa chỉ email của chủ tài khoản Resend**. Đúng nhu cầu
+> app một người dùng. Sau này muốn gửi tới email bất kỳ thì vào Resend → **Domains**, thêm tên miền
+> của bạn, xác minh DNS, rồi đổi ô Sender email thành `no-reply@tenmien-cua-ban`.
+
+Thử lại: mở app → **Cài đặt → Đồng bộ Supabase** → **Gửi mã đăng nhập**. Không thấy mail thì xem
+**Logs → Auth Logs** trên Supabase và tab **Emails** trên Resend — một trong hai chỗ sẽ ghi lỗi thật.
+
+## 5. Lấy URL và key
 
 1. **Project Settings → API Keys**: copy **Publishable key** (`sb_publishable_…`). Project cũ thì
    dùng **anon** key trong mục Legacy. Cả hai đều được.
@@ -56,7 +87,7 @@ bằng đúng email đó là chạy. Muốn dùng email khác thì cấu hình S
 > phép nằm công khai trong code trên Vercel, vì dữ liệu đã được khoá bằng RLS. Service role key
 > thì vượt qua được RLS: lộ ra là ai cũng đọc/xoá được toàn bộ dữ liệu.
 
-## 5. Điền vào máy chạy dev
+## 6. Điền vào máy chạy dev
 
 Mở (hoặc tạo) file `.env.local` ở thư mục gốc dự án, thêm hai dòng:
 
@@ -70,7 +101,7 @@ VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxxxxxxx
 Tắt `npm run dev` rồi chạy lại: Vite chỉ đọc biến môi trường lúc khởi động.
 File `.env.local` đã nằm trong `.gitignore`, không bị commit.
 
-## 6. Điền vào Vercel
+## 7. Điền vào Vercel
 
 1. Vercel → project → **Settings → Environment Variables**.
 2. Thêm `VITE_SUPABASE_URL` và `VITE_SUPABASE_PUBLISHABLE_KEY`, chọn **Production** (và **Preview**
@@ -78,7 +109,7 @@ File `.env.local` đã nằm trong `.gitignore`, không bị commit.
 3. **Deployments → Redeploy** bản mới nhất. Biến `VITE_*` được nhúng vào code lúc build, nên
    thêm biến xong mà không build lại thì app vẫn chưa thấy.
 
-## 7. Đăng nhập trong app
+## 8. Đăng nhập trong app
 
 1. Mở app → **Cài đặt → Đồng bộ Supabase** → nhập email → **Gửi mã đăng nhập**.
 2. Mở email, gõ mã vào ô **Mã trong email** → **Đăng nhập**.
@@ -90,7 +121,7 @@ File `.env.local` đã nằm trong `.gitignore`, không bị commit.
 
 Thẻ đồng bộ hiện trạng thái: đang đồng bộ, số mục chờ đẩy lên, hoặc giờ đồng bộ gần nhất.
 
-## 8. Khoá đăng ký (nên làm)
+## 9. Khoá đăng ký (nên làm)
 
 Sau khi đã đăng nhập được lần đầu: **Authentication → Sign In / Providers** → tắt
 **Allow new users to sign up**.
@@ -116,7 +147,8 @@ cũng không tạo được tài khoản và dùng hết quota miễn phí của
 | Thông báo | Nguyên nhân / cách xử lý |
 |---|---|
 | Thẻ đồng bộ ghi "Chưa cấu hình" | Thiếu biến môi trường, hoặc chưa khởi động lại dev server / chưa redeploy Vercel |
-| Không nhận được email | Email không phải thành viên project (xem mục 3), hoặc mail rơi vào Spam |
+| "Supabase không gửi được email" (`Error sending confirmation email`) | Chưa có SMTP riêng mà đăng nhập bằng email không phải thành viên project. Làm mục 4 |
+| Không nhận được email | Kiểm tra Spam. Vẫn không có thì xem **Logs → Auth Logs** (Supabase) và tab **Emails** (Resend) |
 | Email chỉ có link, không có mã | Template chưa có `{{ .Token }}` (mục 3) |
 | "Mã sai hoặc đã hết hạn" | Dùng mã trong email mới nhất. Mỗi lần bấm gửi lại là mã cũ hết hiệu lực |
 | "Gửi mã quá nhiều lần" | Chạm giới hạn gửi mail, đợi vài phút |

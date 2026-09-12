@@ -117,6 +117,10 @@ function describe(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err)
   if (/expired|invalid/i.test(msg) && /token|otp/i.test(msg)) return 'Mã sai hoặc đã hết hạn.'
   if (/rate limit/i.test(msg)) return 'Gửi mã quá nhiều lần — đợi vài phút rồi thử lại.'
+  // Supabase nhận yêu cầu nhưng phía gửi mail hỏng: chưa có SMTP riêng, hoặc email
+  // đích không phải thành viên project (dịch vụ mail sẵn có chỉ gửi nội bộ).
+  if (/error sending/i.test(msg) && /email|mail/i.test(msg))
+    return 'Supabase không gửi được email — xem mục SMTP trong SUPABASE.md.'
   if (/signups? not allowed/i.test(msg)) return 'Email này chưa có tài khoản (đăng ký mới đang tắt).'
   if (/failed to fetch|network/i.test(msg)) return 'Không kết nối được Supabase.'
   return msg
