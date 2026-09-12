@@ -20,6 +20,7 @@ function makeData(days: DayLog[]): AppData {
     customExercises: [],
     days: Object.fromEntries(days.map((d) => [d.date, d])),
     templates: [],
+    workoutTemplates: [],
     lastAmounts: {},
     lastCosts: {},
     recent: {},

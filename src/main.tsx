@@ -2,6 +2,9 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
 import './index.css'
+import { initSync } from './lib/sync'
+
+initSync()
 
 /**
  * `registerType: 'autoUpdate'` cho service worker mới giành quyền ngay, nhưng lần

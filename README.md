@@ -25,9 +25,11 @@ Sau đó chạy offline được, không cần mạng để log.
 
 ## Dữ liệu
 
-Toàn bộ dữ liệu nằm trong `localStorage` của trình duyệt trên máy đó — không server, không
-tài khoản, không đồng bộ. Xoá dữ liệu duyệt web là mất sạch, nên **Cài đặt → Tải file backup**
-định kỳ. File backup nạp lại được ở cùng màn hình.
+Dữ liệu nằm trong `localStorage` của trình duyệt và app chạy được hoàn toàn offline. Khi đã
+cấu hình Supabase và đăng nhập (**Cài đặt → Đồng bộ Supabase**), mọi thay đổi được đồng bộ lên
+Supabase theo kiểu local-first: ghi vào máy trước, có mạng thì đẩy lên. Cách cài từng bước ở
+[SUPABASE.md](SUPABASE.md). Chưa cấu hình thì app chạy chỉ trên máy như trước, và vẫn nên
+**Cài đặt → Tải file backup** định kỳ.
 
 ## Cấu trúc
 
@@ -44,11 +46,17 @@ src/
   lib/label.ts           đọc bảng dinh dưỡng từ text OCR (VN + EN)
   lib/verdict.ts         quyết định nên ăn / ăn một phần / để hôm khác
   lib/storage.ts         localStorage + export/import backup
+  lib/lift.ts            volume, 1RM, dropset, bước nhảy kg, lần trước, buổi mẫu
+  lib/setRows.ts         dòng nhập set: tick, set chờ lưu, dựng từ log / kế hoạch / lần trước
+  lib/draft.ts           bản nháp ô nhập set, sống qua lúc app bị tắt
+  lib/sync.ts            đồng bộ Supabase + đăng nhập bằng mã email
+  lib/syncCore.ts        phần logic thuần của đồng bộ (gộp ngày, giải xung đột)
   lib/format.ts          định dạng tiếng Việt, tìm kiếm không dấu
+supabase/migrations/     SQL tạo bảng + RLS, chạy trong Supabase SQL Editor
   components/            Sheet, Ring, WeekChart, ExpenseGauge, NoticeSheet,
                          LogSheet, EntrySheet, ScanSheet, RunSheet, icons
   screens/               Today, History, Wallet, Foods, Body, Settings
-  *.test.ts              88 test: engine macro, parser nhãn, verdict, buổi chạy, ví tiền
+  *.test.ts              engine macro, parser nhãn, verdict, buổi chạy, ví tiền, tập tạ, đồng bộ
 ```
 
 ## Quét nhãn dinh dưỡng
@@ -70,6 +78,28 @@ vượt hai cái đó. Khẩu phần gợi ý luôn lấy theo hạn mức chậ
 Số liệu OCR đọc ra đều **sửa tay được trước khi quyết định** — nhãn mờ hay chụp nghiêng
 là chuyện thường, nên bước xác nhận là bắt buộc chứ không phải tuỳ chọn. Lần quét đầu
 cần mạng để tải bộ nhận dạng chữ (~10MB), sau đó trình duyệt cache lại.
+
+Ảnh nhãn lấy được theo hai cách: **Chụp nhãn** (mở thẳng camera) hoặc **Chọn ảnh từ album**.
+
+## Buổi tập tạ
+
+- **Nhập set**: mỗi ô kg và rep có nút − / +. Kg nhảy 2,5 mỗi lần bấm, đổi riêng cho từng bài ở
+  **Sửa bài** (máy cáp nấc 5 kg, tạ đơn nhảy 2 kg…). Nhấn giữ thì số chạy liên tục.
+- **Tick từng set**: tập xong set nào tick set đó, set đã tick vào log ngay. Bấm Lưu mà còn set
+  đã điền chưa tick thì app hỏi tick hết hay chỉ giữ set đã tick.
+- **Dropset**: bấm số thứ tự set → **Thêm nấc drop**, kg gợi ý giảm ~20%. Cả chuỗi tính là một
+  set, volume cộng mọi nấc, 1RM/top set chỉ đọc set chính.
+- **Lần trước**: chọn nhóm buổi (VD Kéo) khi hôm nay chưa log gì, app hiện buổi Kéo gần nhất.
+  **Log sẵn** đưa các bài đó vào kế hoạch; set chỉ vào log khi được tick, nên bỏ bài giữa chừng
+  không làm sai lịch sử.
+- **Buổi mẫu**: log xong bấm **Lưu thành buổi mẫu** và đặt tên. Mẫu nhớ bài và số set, còn kg/rep
+  lấy từ lần tập gần nhất mỗi khi dùng. Quản lý ở **Cài đặt → Buổi tập mẫu**.
+- **Sửa buổi cũ**: tab Bài tập → **Các buổi đã tập** → bấm vào ngày cần sửa.
+- **Tiến bộ từng bài**: nút sparkline bên phải mỗi bài trong danh sách (6 buổi gần nhất + mức
+  chênh). Bấm vào mở biểu đồ theo thời gian: đổi 1RM / top set / volume, lọc 1T–6T–tất cả,
+  vòng lime đánh dấu kỷ lục mới, chạm một điểm để xem set của buổi đó.
+- **Bản nháp**: số đang gõ dở được lưu ngay trên máy (và đồng bộ nếu đã đăng nhập). App bị tắt
+  giữa buổi thì lần mở sau hỏi *"Bạn đang tập dở …, tiếp tục không?"*.
 
 ## Buổi chạy bộ
 

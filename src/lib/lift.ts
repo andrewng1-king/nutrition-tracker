@@ -7,6 +7,8 @@ import type {
   LiftGroup,
   LiftMode,
   LiftSet,
+  PlanItem,
+  WorkoutTemplate,
 } from './types'
 
 export const LIFT_GROUPS: LiftGroup[] = ['pull', 'push', 'shoulder', 'legs', 'abs']
@@ -62,16 +64,47 @@ export function effectiveKg(ex: Exercise, kg: number, bodyKg = 0): number {
   return kg * sideFactor(ex)
 }
 
+/** Volume một set, cộng cả các nấc dropset. */
 export function setVolume(ex: Exercise, s: LiftSet, bodyKg = 0): number {
-  return effectiveKg(ex, s.kg, bodyKg) * s.reps
+  const main = effectiveKg(ex, s.kg, bodyKg) * s.reps
+  return (s.drops ?? []).reduce((sum, d) => sum + effectiveKg(ex, d.kg, bodyKg) * d.reps, main)
 }
 
 export function entryVolume(ex: Exercise, e: LiftEntry, bodyKg = 0): number {
   return e.sets.reduce((sum, s) => sum + setVolume(ex, s, bodyKg), 0)
 }
 
+/** Rep của một set, gồm cả rep ở các nấc dropset. */
+export function setReps(s: LiftSet): number {
+  return (s.drops ?? []).reduce((sum, d) => sum + d.reps, s.reps)
+}
+
 export function entryReps(e: LiftEntry): number {
-  return e.sets.reduce((sum, s) => sum + s.reps, 0)
+  return e.sets.reduce((sum, s) => sum + setReps(s), 0)
+}
+
+export const DEFAULT_KG_STEP = 2.5
+
+export function kgStepFor(ex: Exercise): number {
+  return ex.kgStep && ex.kgStep > 0 ? ex.kgStep : DEFAULT_KG_STEP
+}
+
+/**
+ * Bấm −/+ một nấc. Số lẻ so với bước nhảy thì bắt về nấc gần nhất theo chiều
+ * bấm: 46 + (bước 2,5) ra 47,5 chứ không ra 48,5 — con số trên máy luôn là bội
+ * của nấc tạ. Làm tròn 2 chữ số để 0,1 + 0,2 không lòi ra 0,30000000000000004.
+ */
+export function stepValue(value: number, step: number, dir: 1 | -1): number {
+  const k = value / step
+  const next = dir > 0 ? (Math.floor(k + 1e-6) + 1) * step : (Math.ceil(k - 1e-6) - 1) * step
+  return Math.max(0, Math.round(next * 100) / 100)
+}
+
+/** Kg gợi ý cho nấc drop tiếp theo: giảm ~20%, làm tròn xuống nấc tạ. */
+export function suggestDropKg(prevKg: number, step: number): number {
+  if (prevKg <= 0) return 0
+  const target = prevKg * 0.8
+  return Math.max(0, Math.round(Math.floor(target / step + 1e-6) * step * 100) / 100)
 }
 
 /** Set nặng nhất; cùng mức tạ thì set nhiều rep hơn thắng. */
@@ -301,7 +334,79 @@ export function volumeShort(kg: number): string {
   return String(Math.round(kg))
 }
 
-/** "22,5×8" — gọn cho danh sách set, số thập phân theo kiểu Việt Nam. */
+/** "22,5×8", dropset thành "22,5×8↘17,5×6" — gọn cho danh sách set. */
 export function shortSet(s: LiftSet): string {
-  return `${Number(s.kg.toFixed(2)).toLocaleString('vi-VN')}×${s.reps}`
+  const part = (kg: number, reps: number) =>
+    `${Number(kg.toFixed(2)).toLocaleString('vi-VN')}×${reps}`
+  return [part(s.kg, s.reps), ...(s.drops ?? []).map((d) => part(d.kg, d.reps))].join('↘')
+}
+
+// ---------------- bắt đầu buổi: lần trước, buổi mẫu, kế hoạch ----------------
+
+export interface PastSession {
+  date: string
+  entries: LiftEntry[]
+}
+
+/**
+ * Buổi gần nhất trước `before` của đúng nhóm và chế độ đang tập. Ngày có gắn
+ * nhãn nhóm thì khớp theo nhãn; ngày cũ chưa có nhãn thì khớp khi quá nửa số
+ * bài thuộc nhóm đó — dữ liệu trước khi có chip nhóm vẫn gợi ý được.
+ */
+export function lastSessionFor(
+  data: AppData,
+  mode: LiftMode,
+  group: LiftGroup,
+  before: string,
+  exById: Map<string, Exercise>,
+): PastSession | undefined {
+  const dates = liftDates(data).filter((d) => d < before)
+  for (let i = dates.length - 1; i >= 0; i--) {
+    const day = data.days[dates[i]]
+    const entries = (day?.lifts ?? []).filter((e) => exById.get(e.exerciseId)?.mode === mode)
+    if (entries.length === 0) continue
+    const matches = day.liftGroup
+      ? day.liftGroup === group
+      : entries.filter((e) => exById.get(e.exerciseId)?.group === group).length * 2 >
+        entries.length
+    if (matches) return { date: dates[i], entries }
+  }
+  return undefined
+}
+
+/** Kế hoạch chép nguyên set của một buổi cũ. */
+export function planFromSession(session: PastSession): PlanItem[] {
+  return session.entries.map((e) => ({ exerciseId: e.exerciseId, sets: e.sets }))
+}
+
+/**
+ * Kế hoạch từ buổi mẫu: đủ số set của mẫu, kg/rep lấy từ lần tập gần nhất.
+ * Mẫu nhiều set hơn lần trước thì lặp lại set cuối; bài chưa tập bao giờ thì
+ * để set trống cho người dùng tự điền.
+ */
+export function planFromTemplate(
+  data: AppData,
+  template: WorkoutTemplate,
+  date: string,
+): PlanItem[] {
+  return template.items.map((item) => {
+    const last = lastSetsFor(data, item.exerciseId, date)?.sets ?? []
+    const sets: LiftSet[] = Array.from({ length: Math.max(1, item.sets) }, (_, i) => {
+      const src = last[Math.min(i, last.length - 1)]
+      return src ? { ...src } : { kg: 0, reps: 0 }
+    })
+    return { exerciseId: item.exerciseId, sets }
+  })
+}
+
+/** Điểm cho sparkline ở danh sách bài: `count` buổi gần nhất của chỉ số chính. */
+export function sparkValues(
+  data: AppData,
+  ex: Exercise,
+  bodyKg: number,
+  count = 6,
+): number[] {
+  return exerciseHistory(data, ex, undefined, bodyKg)
+    .slice(-count)
+    .map((p) => (isBodyweight(ex) ? p.top.reps : p.e1rm))
 }

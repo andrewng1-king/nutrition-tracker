@@ -90,12 +90,26 @@ export interface Exercise {
   /** true for user-created exercises (editable / deletable) */
   custom?: boolean
   note?: string
+  /** bước nhảy của nút −/+ ở ô kg; không có thì 2,5 — máy nấc 5 kg thì đặt 5 */
+  kgStep?: number
+}
+
+/** Một nấc giảm tạ của dropset: làm liền ngay sau set chính, không nghỉ. */
+export interface LiftDrop {
+  reps: number
+  kg: number
 }
 
 export interface LiftSet {
   reps: number
   /** đúng con số người dùng đọc trên tạ/máy — xem `Exercise.perSide` */
   kg: number
+  /**
+   * Dropset: các nấc sau set chính. Cả chuỗi vẫn tính là MỘT set. Volume cộng mọi
+   * nấc, còn top set / 1RM chỉ đọc set chính — nấc sau làm lúc cơ đã mỏi, đưa vào
+   * sẽ kéo ước tính sức nâng xuống.
+   */
+  drops?: LiftDrop[]
 }
 
 export interface LiftEntry {
@@ -122,6 +136,12 @@ export interface DayLog {
   turbo?: boolean
   /** buổi tạ trong ngày — cố tình KHÔNG cộng kcal vào target, xem lib/lift.ts */
   lifts?: LiftEntry[]
+  /**
+   * Kế hoạch buổi tập: bài và set mục tiêu lấy từ lần trước hoặc buổi mẫu. Nằm
+   * riêng khỏi `lifts` — set chỉ vào log khi được tick, nên bỏ bài giữa chừng
+   * không làm sai volume hay PR.
+   */
+  plan?: PlanItem[]
   /** nhãn buổi tập, quyết định danh sách bài gợi ý trước */
   liftGroup?: LiftGroup
   weightKg?: number
@@ -134,6 +154,24 @@ export interface Template {
   name: string
   meal?: MealSlot
   items: { foodId: string; amount: number; oilTsp?: number }[]
+}
+
+export interface PlanItem {
+  exerciseId: string
+  /** set mục tiêu, chép lúc lập kế hoạch */
+  sets: LiftSet[]
+}
+
+/**
+ * Buổi tập mẫu có tên. Chỉ giữ bài và số set — kg/rep lấy lại từ lần tập gần
+ * nhất mỗi khi dùng, nên mẫu không bao giờ cũ đi khi đã lên tạ.
+ */
+export interface WorkoutTemplate {
+  id: string
+  name: string
+  mode: LiftMode
+  group?: LiftGroup
+  items: { exerciseId: string; sets: number }[]
 }
 
 export interface Macros {
@@ -186,6 +224,7 @@ export interface AppData {
   customExercises: Exercise[]
   days: Record<string, DayLog>
   templates: Template[]
+  workoutTemplates: WorkoutTemplate[]
   /** foodId -> last amount used, powers one-tap defaults */
   lastAmounts: Record<string, number>
   /** foodId -> giá mỗi 1 đơn vị amount (VND), để lần sau điền sẵn tiền */

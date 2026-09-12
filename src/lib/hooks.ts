@@ -1,9 +1,19 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { draftStore, type DraftMap } from './draft'
 import { store } from './storage'
+import { syncStore, type SyncState } from './sync'
 import type { AppData } from './types'
 
 export function useData(): AppData {
   return useSyncExternalStore(store.subscribe, store.get, store.get)
+}
+
+export function useDrafts(): DraftMap {
+  return useSyncExternalStore(draftStore.subscribe, draftStore.get, draftStore.get)
+}
+
+export function useSync(): SyncState {
+  return useSyncExternalStore(syncStore.subscribe, syncStore.get, syncStore.get)
 }
 
 /**

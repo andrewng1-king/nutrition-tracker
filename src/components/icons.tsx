@@ -173,6 +173,35 @@ export function IconChevron({ className }: Props) {
   )
 }
 
+/** Dấu tick — set đã làm xong. */
+export function IconCheck({ className }: Props) {
+  return (
+    <svg {...base} className={className} strokeWidth={2.6}>
+      <path d="m5 12.5 4.5 4.5L19 7.5" />
+    </svg>
+  )
+}
+
+/** Ảnh — chọn ảnh có sẵn trong album. */
+export function IconImage({ className }: Props) {
+  return (
+    <svg {...base} className={className}>
+      <rect x="3.5" y="4.5" width="17" height="15" rx="3" />
+      <circle cx="9" cy="10" r="1.8" />
+      <path d="m20.5 15.5-4.8-4.6-8.7 8.6" />
+    </svg>
+  )
+}
+
+/** Đám mây — trạng thái đồng bộ. */
+export function IconCloud({ className }: Props) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M7.2 18.5h9.9a4.4 4.4 0 0 0 .6-8.8 6 6 0 0 0-11.5 1.6 3.6 3.6 0 0 0 1 7.2Z" />
+    </svg>
+  )
+}
+
 /** Tua vít — nút công cụ dev ở góc trái dưới. */
 export function IconScrewdriver({ className }: Props) {
   return (

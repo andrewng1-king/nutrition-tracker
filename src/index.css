@@ -1309,13 +1309,25 @@ input[type='number']::-webkit-inner-spin-button {
 
 /* ---------- lifts ---------- */
 
-/* Lưới nhập set: số thứ tự | mức tạ | rep | xoá. Hai ô số phải đủ to để gõ
-   bằng ngón cái giữa buổi tập, nên cột phụ thu hết mức có thể. */
-.set-grid {
-  display: grid;
-  grid-template-columns: 22px 1fr 1fr 38px;
+/* Dòng nhập set: số thứ tự | − kg + | − rep + | tick. Hai cụm số phải đủ to để
+   bấm bằng ngón cái giữa hiệp tập, nên cột phụ thu hết mức có thể. */
+.set-list {
+  display: flex;
+  flex-direction: column;
   gap: 8px;
+}
+
+.set-row {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) minmax(0, 1fr) 42px;
+  gap: 6px;
   align-items: center;
+}
+
+.set-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .set-head {
@@ -1326,23 +1338,274 @@ input[type='number']::-webkit-inner-spin-button {
   color: var(--dim);
 }
 
+/* Số thứ tự là nút mở công cụ của set (thêm nấc drop, xoá) — viền nét đứt gợi ý bấm được */
 .set-index {
+  height: 42px;
+  border-radius: 10px;
+  border: 1px dashed var(--line);
   font-size: 13px;
   font-weight: 600;
   color: var(--dim);
   text-align: center;
 }
 
-.set-grid input {
+.set-index[aria-expanded='true'] {
+  border-style: solid;
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.set-tick {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: manipulation;
+}
+
+.set-tick .ico {
+  width: 20px;
+  height: 20px;
+}
+
+.set-tick[aria-pressed='true'] {
+  background: var(--lime-2);
+  border-color: transparent;
+  color: var(--on-lime);
+}
+
+/* Set đã tick: số chuyển lime — liếc qua là biết còn mấy set chưa làm */
+.set-block[data-done] > .set-row .stepper input {
+  color: var(--lime);
+  border-color: color-mix(in srgb, var(--lime) 30%, var(--line));
+}
+
+.drop-mark {
+  text-align: center;
+  color: var(--fat);
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.set-tools {
+  display: flex;
+  gap: 8px;
+  padding-left: 32px;
+  flex-wrap: wrap;
+}
+
+.stepper {
+  display: flex;
+  align-items: stretch;
+  gap: 3px;
+  min-width: 0;
+}
+
+.stepper input {
+  flex: 1;
+  min-width: 0;
   text-align: center;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  padding: 10px 6px;
+  padding: 9px 2px;
+  border-radius: 10px;
+}
+
+.stepper-btn {
+  width: 32px;
+  flex: none;
+  min-height: 42px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  font-size: 19px;
+  line-height: 1;
+  color: var(--muted);
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.stepper-btn:active {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+@media (max-width: 360px) {
+  .set-row {
+    gap: 4px;
+    grid-template-columns: 22px minmax(0, 1fr) minmax(0, 1fr) 38px;
+  }
+  .stepper {
+    gap: 2px;
+  }
+  .stepper-btn {
+    width: 27px;
+  }
+  .set-tick {
+    width: 38px;
+  }
+}
+
+.lift-name {
+  font-weight: 500;
+}
+
+.list-item.planned .lift-name {
+  color: var(--muted);
+}
+
+.list-item.compact {
+  min-height: 0;
+  padding: 8px 0;
+}
+
+.start-card {
+  border-color: color-mix(in srgb, var(--lime) 28%, var(--line));
+}
+
+/* Hàng bài tập: vùng tên mở form sửa, nút sparkline bên phải mở biểu đồ tiến bộ */
+.list-item.ex-row {
+  padding: 0;
+  gap: 8px;
+}
+
+.ex-open {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  padding: 12px 0;
+  min-height: var(--tap);
+}
+
+.spark-btn {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 42px;
+  padding: 0 9px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+
+.spark-btn:active {
+  background: var(--surface-3);
+}
+
+.spark-btn svg {
+  display: block;
+  overflow: visible;
+}
+
+/* Bề rộng cố định cho "−51,8" để mọi nút cùng cỡ, tên bài thẳng hàng một cột */
+.spark-delta {
+  font-size: 12px;
+  font-weight: 600;
+  width: 40px;
+  text-align: right;
+}
+
+.spark-btn[data-tone='up'] .spark-delta {
+  color: var(--ok);
+}
+
+.spark-btn[data-tone='down'] .spark-delta {
+  color: var(--level-2);
+}
+
+.spark-btn[data-tone='flat'] .spark-delta {
+  color: var(--dim);
+}
+
+/* Biểu đồ tiến bộ một bài. touch-action pan-y: vuốt dọc vẫn cuộn sheet, kéo ngang
+   thì chọn buổi. */
+.progress-chart {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.progress-chart text {
+  fill: var(--dim);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.progress-chart .grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.progress-chart .guide {
+  stroke: var(--muted);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.progress-chart .pr-ring {
+  fill: none;
+  stroke: var(--lime);
+  stroke-width: 2;
+}
+
+.progress-chart .dot-selected {
+  stroke: var(--bg);
+  stroke-width: 2;
+}
+
+.progress-value {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.pr-swatch {
+  background: transparent;
+  border: 2px solid var(--lime);
+  width: 10px;
+  height: 10px;
+}
+
+.pr-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: 7px;
+  border-radius: 50%;
+  background: var(--lime);
+  vertical-align: middle;
+}
+
+.list-item[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--lime) 6%, transparent);
+  box-shadow: inset 3px 0 0 var(--lime);
+  padding-left: 10px;
+}
+
+.btn .ico {
+  width: 18px;
+  height: 18px;
+  flex: none;
 }
 
 .set-del {
-  width: 38px;
-  height: 38px;
+  width: 42px;
+  height: 42px;
   border-radius: 12px;
   background: var(--surface-2);
   border: 1px solid var(--line);
@@ -1765,6 +2028,12 @@ input[type='number']::-webkit-inner-spin-button {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+/* Nội dung dài hơn sheet thì thân sheet phải cuộn, không được bóp con. Thẻ có
+   overflow: hidden (.card.ink) mất min-height tự động nên bị ép còn vài chục px. */
+.sheet-body > * {
+  flex-shrink: 0;
 }
 
 @keyframes rise {

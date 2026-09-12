@@ -12,11 +12,13 @@ import type {
   LiftGroup,
   LiftSet,
   MealSlot,
+  PlanItem,
   Template,
+  WorkoutTemplate,
 } from './types'
 
 const KEY = 'nutrition-tracker-v1'
-const VERSION = 3
+const VERSION = 4
 
 function emptyData(): AppData {
   return {
@@ -26,6 +28,7 @@ function emptyData(): AppData {
     customExercises: [],
     days: {},
     templates: [],
+    workoutTemplates: [],
     lastAmounts: {},
     lastCosts: {},
     recent: {},
@@ -52,13 +55,23 @@ function load(): AppData {
 let data: AppData = typeof localStorage === 'undefined' ? emptyData() : load()
 const listeners = new Set<() => void>()
 
-function commit(next: AppData) {
+/**
+ * `local` = người dùng vừa sửa trên máy này, cần đẩy lên Supabase.
+ * `remote` = vừa kéo từ Supabase về, không được đánh dấu để đẩy ngược lên.
+ */
+export type CommitOrigin = 'local' | 'remote'
+type CommitListener = (prev: AppData, next: AppData, origin: CommitOrigin) => void
+const commitListeners = new Set<CommitListener>()
+
+function commit(next: AppData, origin: CommitOrigin = 'local') {
+  const prev = data
   data = next
   try {
     localStorage.setItem(KEY, JSON.stringify(data))
   } catch (err) {
     console.error('Không lưu được dữ liệu', err)
   }
+  commitListeners.forEach((l) => l(prev, next, origin))
   listeners.forEach((l) => l())
 }
 
@@ -68,6 +81,15 @@ export const store = {
     return () => listeners.delete(l)
   },
   get: () => data,
+  /** Lớp đồng bộ nghe mọi lần ghi để biết ngày nào vừa đổi. */
+  onCommit(l: CommitListener) {
+    commitListeners.add(l)
+    return () => commitListeners.delete(l)
+  },
+  /** Ghi dữ liệu kéo từ Supabase về — không kích hoạt đẩy ngược lên. */
+  applyRemote(fn: (d: AppData) => AppData) {
+    commit({ ...emptyData(), ...fn(data), version: VERSION }, 'remote')
+  },
 }
 
 function update(fn: (d: AppData) => AppData) {
@@ -218,9 +240,17 @@ export function setDayField(date: string, patch: Partial<DayLog>) {
 
 // ---------------- lifts ----------------
 
-/** Bỏ set trống để một bài mở 3 dòng nhưng chỉ tập 2 set không đẻ ra set 0×0. */
+/**
+ * Bỏ set trống để một bài mở 3 dòng nhưng chỉ tập 2 set không đẻ ra set 0×0.
+ * Nấc drop trống cũng bỏ, và set không còn nấc nào thì không giữ mảng rỗng.
+ */
 function cleanSets(sets: LiftSet[]): LiftSet[] {
-  return sets.filter((s) => s.reps > 0 && s.kg >= 0)
+  return sets
+    .filter((s) => s.reps > 0 && s.kg >= 0)
+    .map((s) => {
+      const drops = (s.drops ?? []).filter((d) => d.reps > 0 && d.kg >= 0)
+      return drops.length > 0 ? { reps: s.reps, kg: s.kg, drops } : { reps: s.reps, kg: s.kg }
+    })
 }
 
 /**
@@ -319,8 +349,69 @@ export function toggleDayType(date: string, type: DayType, current: DayType[]) {
   setDayTypes(date, next)
 }
 
-export function clearWorkout(date: string) {
-  setDayField(date, { lifts: undefined, liftGroup: undefined })
+/**
+ * Xoá buổi tập của một chế độ: chỉ các bài thuộc `exerciseIds`, để xoá buổi gym
+ * không cuốn luôn buổi calisthenic cùng ngày. Không còn bài nào thì bỏ cả nhãn nhóm.
+ */
+export function clearWorkout(date: string, exerciseIds: string[]) {
+  const drop = new Set(exerciseIds)
+  update((d) =>
+    withDay(d, date, (day) => {
+      const lifts = (day.lifts ?? []).filter((e) => !drop.has(e.exerciseId))
+      const plan = (day.plan ?? []).filter((p) => !drop.has(p.exerciseId))
+      return {
+        ...day,
+        lifts: lifts.length > 0 ? lifts : undefined,
+        plan: plan.length > 0 ? plan : undefined,
+        liftGroup: lifts.length > 0 || plan.length > 0 ? day.liftGroup : undefined,
+      }
+    }),
+  )
+}
+
+// ---------------- kế hoạch & buổi mẫu ----------------
+
+/**
+ * Thêm bài vào kế hoạch của ngày. Bài đã có trong kế hoạch thì giữ bản cũ —
+ * bấm "Log sẵn" hai lần không nhân đôi số bài.
+ */
+export function addToPlan(date: string, items: PlanItem[]) {
+  update((d) =>
+    withDay(d, date, (day) => {
+      const plan = day.plan ?? []
+      const have = new Set(plan.map((p) => p.exerciseId))
+      const fresh = items.filter((p) => !have.has(p.exerciseId))
+      return { ...day, plan: [...plan, ...fresh] }
+    }),
+  )
+}
+
+/** Bỏ các bài thuộc `exerciseIds` khỏi kế hoạch; không truyền gì = bỏ cả kế hoạch. */
+export function clearPlan(date: string, exerciseIds?: string[]) {
+  update((d) =>
+    withDay(d, date, (day) => {
+      if (!exerciseIds) return { ...day, plan: undefined }
+      const drop = new Set(exerciseIds)
+      const plan = (day.plan ?? []).filter((p) => !drop.has(p.exerciseId))
+      return { ...day, plan: plan.length > 0 ? plan : undefined }
+    }),
+  )
+}
+
+export function saveWorkoutTemplate(t: Omit<WorkoutTemplate, 'id'> & { id?: string }) {
+  const id = t.id ?? uid()
+  update((d) => ({
+    ...d,
+    workoutTemplates: [...(d.workoutTemplates ?? []).filter((x) => x.id !== id), { ...t, id }],
+  }))
+  return id
+}
+
+export function deleteWorkoutTemplate(id: string) {
+  update((d) => ({
+    ...d,
+    workoutTemplates: (d.workoutTemplates ?? []).filter((t) => t.id !== id),
+  }))
 }
 
 // ---------------- templates ----------------

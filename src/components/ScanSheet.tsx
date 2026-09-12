@@ -7,6 +7,7 @@ import { addEntry, foodMap, getDay, saveFood } from '../lib/storage'
 import type { Macros, MealSlot } from '../lib/types'
 import { decide } from '../lib/verdict'
 import { weekSummary } from '../lib/week'
+import { IconCamera, IconImage } from './icons'
 import { Sheet } from './Sheet'
 
 type Stage = 'capture' | 'reading' | 'review'
@@ -58,7 +59,10 @@ async function downscale(file: File, maxSide = 1500): Promise<Blob> {
 export function ScanSheet({ date, onClose }: { date: string; onClose: () => void }) {
   const data = useData()
   const map = useMemo(() => foodMap(data), [data])
-  const fileRef = useRef<HTMLInputElement>(null)
+  // Hai ô file riêng: `capture` ép điện thoại mở thẳng camera, không cho vào album.
+  // Ô không có `capture` thì iOS/Android mở trình chọn ảnh có sẵn.
+  const cameraRef = useRef<HTMLInputElement>(null)
+  const albumRef = useRef<HTMLInputElement>(null)
 
   const [stage, setStage] = useState<Stage>('capture')
   const [preview, setPreview] = useState<string | null>(null)
@@ -112,6 +116,12 @@ export function ScanSheet({ date, onClose }: { date: string; onClose: () => void
     }
   }
 
+  function onPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) handleFile(file)
+    e.target.value = ''
+  }
+
   // --- tính toán ---
   const factor = f.basis === 'per100' ? f.amount / 100 : f.amount
   const item: Macros = {
@@ -156,29 +166,31 @@ export function ScanSheet({ date, onClose }: { date: string; onClose: () => void
   return (
     <Sheet title="Quét nhãn dinh dưỡng" onClose={onClose}>
       <input
-        ref={fileRef}
+        ref={cameraRef}
         type="file"
         accept="image/*"
         capture="environment"
         hidden
-        onChange={(e) => {
-          const file = e.target.files?.[0]
-          if (file) handleFile(file)
-          e.target.value = ''
-        }}
+        onChange={onPick}
       />
+      <input ref={albumRef} type="file" accept="image/*" hidden onChange={onPick} />
 
-      {preview && <img className="shot" src={preview} alt="Ảnh nhãn dinh dưỡng vừa chụp" />}
+      {preview && <img className="shot" src={preview} alt="Ảnh nhãn dinh dưỡng" />}
 
       {stage === 'capture' && (
         <>
           <p className="muted" style={{ margin: 0 }}>
-            Chụp bảng “Thông tin dinh dưỡng” trên bao bì. App đọc số, đối chiếu với calo
-            còn lại hôm nay, phần calo đã để dành trong tuần và cheat meal còn hay hết —
-            rồi nói nên ăn hay không.
+            Chụp bảng “Thông tin dinh dưỡng” trên bao bì, hoặc chọn ảnh đã chụp sẵn trong
+            album. App đọc số, đối chiếu với calo còn lại hôm nay, phần calo đã để dành
+            trong tuần và cheat meal còn hay hết — rồi nói nên ăn hay không.
           </p>
-          <button className="btn primary full" onClick={() => fileRef.current?.click()}>
+          <button className="btn primary full" onClick={() => cameraRef.current?.click()}>
+            <IconCamera className="ico" />
             Chụp nhãn
+          </button>
+          <button className="btn full" onClick={() => albumRef.current?.click()}>
+            <IconImage className="ico" />
+            Chọn ảnh từ album
           </button>
           <button
             className="btn full"
@@ -361,9 +373,14 @@ export function ScanSheet({ date, onClose }: { date: string; onClose: () => void
             Log cả phần này
           </button>
 
-          <button className="btn full" onClick={() => fileRef.current?.click()}>
-            Chụp lại
-          </button>
+          <div className="grid2">
+            <button className="btn full" onClick={() => cameraRef.current?.click()}>
+              Chụp lại
+            </button>
+            <button className="btn full" onClick={() => albumRef.current?.click()}>
+              Chọn ảnh khác
+            </button>
+          </div>
         </>
       )}
     </Sheet>

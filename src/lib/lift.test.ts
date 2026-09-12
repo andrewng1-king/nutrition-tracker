@@ -2,13 +2,20 @@ import { describe, expect, it } from 'vitest'
 import {
   bestE1rm,
   e1rm,
+  entryReps,
   entryVolume,
   exerciseHistory,
   kgLabel,
+  kgStepFor,
+  lastSessionFor,
   lastSetsFor,
+  planFromTemplate,
   priorBestE1rm,
   reliableE1rm,
   setVolume,
+  shortSet,
+  stepValue,
+  suggestDropKg,
   summarize,
   topSet,
   weeklyVolume,
@@ -61,6 +68,7 @@ function appData(days: Record<string, LiftEntry[]>): AppData {
       Object.entries(days).map(([date, lifts]) => [date, { date, entries: [], lifts }]),
     ),
     templates: [],
+    workoutTemplates: [],
     lastAmounts: {},
     lastCosts: {},
     recent: {},
@@ -251,5 +259,130 @@ describe('bodyweight exercises', () => {
     })
     expect(gym[0].total).toBe(440)
     expect(cal[0].total).toBe(480)
+  })
+})
+
+describe('dropset', () => {
+  const drop = { kg: 60, reps: 10, drops: [{ kg: 45, reps: 8 }, { kg: 30, reps: 6 }] }
+
+  it('adds every drop to volume — cả chuỗi là việc thật đã làm', () => {
+    expect(setVolume(pulldown, drop)).toBe(600 + 360 + 180)
+  })
+
+  it('counts a dropset as one set but every rep', () => {
+    const e: LiftEntry = { id: 'x', exerciseId: pulldown.id, ts: 0, sets: [drop] }
+    expect(summarize([e], new Map([[pulldown.id, pulldown]])).sets).toBe(1)
+    expect(entryReps(e)).toBe(24)
+  })
+
+  it('reads only the head set for 1RM — nấc sau đã mỏi, kéo ước tính xuống sai', () => {
+    expect(e1rm(pulldown, drop)).toBeCloseTo(80, 5)
+  })
+
+  it('doubles per-side drops the same way as the head set', () => {
+    expect(setVolume(dbRow, { kg: 20, reps: 10, drops: [{ kg: 14, reps: 8 }] })).toBe(400 + 224)
+  })
+
+  it('prints the chain compactly', () => {
+    expect(shortSet(drop)).toBe('60×10↘45×8↘30×6')
+    expect(shortSet({ kg: 22.5, reps: 8 })).toBe('22,5×8')
+  })
+
+  it('suggests the next drop about 20% lighter, rounded down to the plate step', () => {
+    expect(suggestDropKg(60, 2.5)).toBe(47.5)
+    expect(suggestDropKg(47.5, 2.5)).toBe(37.5)
+    expect(suggestDropKg(0, 2.5)).toBe(0)
+  })
+})
+
+describe('stepValue', () => {
+  it('moves one plate step', () => {
+    expect(stepValue(47.5, 2.5, 1)).toBe(50)
+    expect(stepValue(47.5, 2.5, -1)).toBe(45)
+  })
+
+  it('snaps an off-step number to the next plate in the pressed direction', () => {
+    expect(stepValue(46, 2.5, 1)).toBe(47.5)
+    expect(stepValue(46, 2.5, -1)).toBe(45)
+  })
+
+  it('never goes below zero', () => {
+    expect(stepValue(1, 2.5, -1)).toBe(0)
+    expect(stepValue(0, 1, -1)).toBe(0)
+  })
+
+  it('does not leak float noise', () => {
+    expect(stepValue(1.25, 1.25, 1)).toBe(2.5)
+    expect(stepValue(0.2, 0.1, 1)).toBe(0.3)
+  })
+
+  it('uses 2,5 unless the exercise overrides it', () => {
+    expect(kgStepFor(pulldown)).toBe(2.5)
+    expect(kgStepFor({ ...pulldown, kgStep: 5 })).toBe(5)
+  })
+})
+
+describe('lastSessionFor', () => {
+  const map = new Map([
+    [dbRow.id, dbRow],
+    [pulldown.id, pulldown],
+    [squat.id, squat],
+  ])
+
+  it('finds the last session of the same labelled group', () => {
+    const data = appData({
+      '2026-09-01': [entry('db-row', [[20, 10]]), entry('lat-pulldown', [[55, 10]])],
+      '2026-09-03': [entry('smith-squat', [[20, 8]])],
+    })
+    data.days['2026-09-01'].liftGroup = 'pull'
+    data.days['2026-09-03'].liftGroup = 'legs'
+    const found = lastSessionFor(data, 'gym', 'pull', '2026-09-05', map)
+    expect(found?.date).toBe('2026-09-01')
+    expect(found?.entries.map((e) => e.exerciseId)).toEqual(['db-row', 'lat-pulldown'])
+  })
+
+  it('falls back to the majority group on days logged before group chips existed', () => {
+    const data = appData({
+      '2026-09-02': [entry('db-row', [[20, 10]]), entry('lat-pulldown', [[55, 10]])],
+    })
+    expect(lastSessionFor(data, 'gym', 'pull', '2026-09-05', map)?.date).toBe('2026-09-02')
+    expect(lastSessionFor(data, 'gym', 'legs', '2026-09-05', map)).toBeUndefined()
+  })
+
+  it('ignores the day being planned', () => {
+    const data = appData({ '2026-09-05': [entry('db-row', [[20, 10]])] })
+    data.days['2026-09-05'].liftGroup = 'pull'
+    expect(lastSessionFor(data, 'gym', 'pull', '2026-09-05', map)).toBeUndefined()
+  })
+})
+
+describe('planFromTemplate', () => {
+  const data = appData({
+    '2026-09-01': [entry('db-row', [[20, 10], [22, 8]])],
+  })
+
+  it('takes kg/rep from the latest session, repeating the last set to fill the count', () => {
+    const plan = planFromTemplate(
+      data,
+      { id: 't', name: 'Kéo A', mode: 'gym', items: [{ exerciseId: 'db-row', sets: 3 }] },
+      '2026-09-05',
+    )
+    expect(plan[0].sets).toEqual([
+      { kg: 20, reps: 10 },
+      { kg: 22, reps: 8 },
+      { kg: 22, reps: 8 },
+    ])
+  })
+
+  it('leaves blank sets for an exercise never trained', () => {
+    const plan = planFromTemplate(
+      data,
+      { id: 't', name: 'Kéo A', mode: 'gym', items: [{ exerciseId: 'lat-pulldown', sets: 2 }] },
+      '2026-09-05',
+    )
+    expect(plan[0].sets).toEqual([
+      { kg: 0, reps: 0 },
+      { kg: 0, reps: 0 },
+    ])
   })
 })

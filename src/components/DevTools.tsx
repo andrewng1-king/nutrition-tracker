@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { seedDemoWeek } from '../lib/demo'
 import { dayLabel, lastNDays, shortDate } from '../lib/format'
+import { useSync } from '../lib/hooks'
 import { resetAll } from '../lib/storage'
 import { IconScrewdriver } from './icons'
 import { Popup } from './Popup'
@@ -66,6 +67,10 @@ function DevSheet({
 }) {
   const [confirm, setConfirm] = useState<'seed' | 'reset' | null>(null)
   const range = lastNDays(7)
+  // Đang đăng nhập thì mọi thay đổi ở đây đẩy thẳng lên tài khoản thật.
+  const synced = useSync().email
+    ? ' Đang đăng nhập đồng bộ: dữ liệu trên Supabase cũng bị ghi đè.'
+    : ''
 
   return (
     <Popup label="Công cụ thử nghiệm" onClose={onClose}>
@@ -93,7 +98,7 @@ function DevSheet({
 
       {confirm === 'seed' && (
         <Confirm
-          text="Dữ liệu mẫu sẽ GHI ĐÈ toàn bộ dữ liệu hiện có (món tự thêm, bài tập tự thêm, mọi ngày đã log). Không hoàn tác được."
+          text={`Dữ liệu mẫu sẽ GHI ĐÈ toàn bộ dữ liệu hiện có (món tự thêm, bài tập tự thêm, mọi ngày đã log). Không hoàn tác được.${synced}`}
           cta="Ghi đè và nạp mẫu"
           onYes={onSeed}
           onNo={() => setConfirm(null)}
@@ -102,7 +107,7 @@ function DevSheet({
 
       {confirm === 'reset' && (
         <Confirm
-          text="Xoá toàn bộ dữ liệu và đưa app về trạng thái mới cài. Không hoàn tác được."
+          text={`Xoá toàn bộ dữ liệu và đưa app về trạng thái mới cài. Không hoàn tác được.${synced}`}
           cta="Xoá sạch"
           onYes={onReset}
           onNo={() => setConfirm(null)}

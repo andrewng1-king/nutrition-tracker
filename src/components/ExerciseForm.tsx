@@ -1,6 +1,13 @@
 import { useState } from 'react'
 import { useData } from '../lib/hooks'
-import { GEAR_LABELS, LIFT_GROUPS, LIFT_GROUP_LABELS } from '../lib/lift'
+import {
+  DEFAULT_KG_STEP,
+  GEAR_LABELS,
+  LIFT_GROUPS,
+  LIFT_GROUP_LABELS,
+  parseKg,
+} from '../lib/lift'
+import { kgInput } from '../lib/setRows'
 import { deleteExercise, isOverriddenSeedExercise, saveExercise } from '../lib/storage'
 import type { Exercise, LiftGear, LiftGroup, LiftMode } from '../lib/types'
 
@@ -14,6 +21,9 @@ const GEAR_DEFAULT_PER_SIDE: Record<LiftGear, boolean> = {
   bar: false,
   body: false,
 }
+
+/** Nấc tạ hay gặp: đĩa 1,25 mỗi bên, tạ đơn nhảy 2 kg, máy cáp nấc 5 kg. */
+const STEP_PRESETS = [1.25, 2, 2.5, 5]
 
 /** Bài thể trọng không có khái niệm "mỗi bên" — tải là chính cơ thể. */
 function allowPerSide(gear: LiftGear): boolean {
@@ -41,6 +51,8 @@ export function ExerciseForm({
   const [perSide, setPerSide] = useState(
     existing?.perSide ?? GEAR_DEFAULT_PER_SIDE[initialGear],
   )
+  const [kgStep, setKgStep] = useState(kgInput(existing?.kgStep ?? DEFAULT_KG_STEP))
+  const step = parseKg(kgStep)
 
   const canReset = existing ? isOverriddenSeedExercise(existing.id, data) : false
   const effectivePerSide = perSide && allowPerSide(gear)
@@ -114,9 +126,32 @@ export function ExerciseForm({
         </p>
       )}
 
+      <div className="field">
+        <label htmlFor="ex-step">Mỗi lần bấm − / + đổi bao nhiêu kg</label>
+        <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+          {STEP_PRESETS.map((v) => (
+            <button
+              key={v}
+              className="chip"
+              aria-pressed={step === v}
+              onClick={() => setKgStep(kgInput(v))}
+            >
+              {kgInput(v)}
+            </button>
+          ))}
+          <input
+            id="ex-step"
+            inputMode="decimal"
+            value={kgStep}
+            onChange={(e) => setKgStep(e.target.value)}
+            style={{ width: 84, textAlign: 'center' }}
+          />
+        </div>
+      </div>
+
       <button
         className="btn primary full"
-        disabled={!name.trim()}
+        disabled={!name.trim() || step <= 0}
         onClick={() => {
           const id = saveExercise({
             id: existing?.id,
@@ -126,6 +161,7 @@ export function ExerciseForm({
             gear,
             perSide: effectivePerSide || undefined,
             note: existing?.note,
+            kgStep: step !== DEFAULT_KG_STEP ? step : undefined,
           })
           onDone(id)
         }}
