@@ -60,7 +60,50 @@ export interface RunLog {
   fileName?: string
 }
 
-export type LiftGroup = 'pull' | 'push' | 'shoulder' | 'legs' | 'abs'
+/**
+ * Nhóm cơ chính của bài. Trước đây là nhóm split (pull/push/…) — dữ liệu cũ còn
+ * mang 'pull' / 'push' được quy đổi lúc đọc, xem `normalizeExercise` ở lib/muscles.ts.
+ */
+export type LiftGroup =
+  | 'chest'
+  | 'back'
+  | 'shoulder'
+  | 'biceps'
+  | 'triceps'
+  | 'forearm'
+  | 'legs'
+  | 'abs'
+
+/** Nhóm phụ trong một nhóm cơ chính — tiền tố là nhóm chính. */
+export type LiftSub =
+  | 'chest-upper'
+  | 'chest-mid'
+  | 'chest-lower'
+  | 'back-lat-mid'
+  | 'back-lat-low'
+  | 'back-mid'
+  | 'back-traps'
+  | 'back-lower'
+  | 'shoulder-front'
+  | 'shoulder-side'
+  | 'shoulder-rear'
+  | 'biceps-long'
+  | 'biceps-short'
+  | 'biceps-brachialis'
+  | 'triceps-long'
+  | 'triceps-lateral'
+  | 'triceps-medial'
+  | 'forearm-flexor'
+  | 'forearm-extensor'
+  | 'forearm-brachioradialis'
+  | 'forearm-grip'
+  | 'legs-quads'
+  | 'legs-hams'
+  | 'legs-glutes'
+  | 'legs-calves'
+  | 'abs-upper'
+  | 'abs-lower'
+  | 'abs-obliques'
 
 /** Bài tạ ở phòng gym vs bài thể trọng (calisthenic) — hai sub-tab khác nhau. */
 export type LiftMode = 'gym' | 'calisthenic'
@@ -83,6 +126,11 @@ export interface Exercise {
   /** tên tiếng Anh chuẩn của bài — dễ tra cứu và khớp với tên máy ở phòng gym */
   name: string
   group: LiftGroup
+  /**
+   * Các phần của nhóm cơ mà bài tác động, đúng theo giải phẫu — bao nhiêu cũng
+   * được. Volume của bài chia đều cho từng phần. Rỗng = không tách phần.
+   */
+  subs?: LiftSub[]
   mode: LiftMode
   gear: LiftGear
   /** true = số nhập là MỖI BÊN (tạ đơn mỗi tay, đĩa mỗi đầu thanh) — volume nhân đôi */
@@ -142,8 +190,8 @@ export interface DayLog {
    * không làm sai volume hay PR.
    */
   plan?: PlanItem[]
-  /** nhãn buổi tập, quyết định danh sách bài gợi ý trước */
-  liftGroup?: LiftGroup
+  /** nhãn split của bản cũ (pull/push/…) — không dùng nữa, nhãn buổi suy từ bài đã tập */
+  liftGroup?: string
   weightKg?: number
   waistCm?: number
   note?: string
@@ -170,7 +218,8 @@ export interface WorkoutTemplate {
   id: string
   name: string
   mode: LiftMode
-  group?: LiftGroup
+  /** nhãn split của bản cũ — không dùng nữa */
+  group?: string
   items: { exerciseId: string; sets: number }[]
 }
 

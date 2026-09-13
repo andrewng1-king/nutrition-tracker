@@ -45,6 +45,28 @@ export function pendingIndexes(rows: DraftRow[], bodyweight: boolean): number[] 
 }
 
 /**
+ * Sửa ô kg hoặc rep của set `i`, rồi chép con số xuống các set ngay bên dưới —
+ * set sau thường giữ nguyên mức tạ, sửa set 1 là xong cả buổi. Dừng ở set đầu
+ * tiên đã tick hoặc đã được sửa tay ô đó: set ấy là số thật / số người dùng
+ * cố ý đặt, và các set dưới nó đi theo nó chứ không theo set `i` nữa.
+ */
+export function editRowField(
+  rows: DraftRow[],
+  i: number,
+  field: 'kg' | 'reps',
+  value: string,
+): DraftRow[] {
+  const flag = field === 'kg' ? 'kgSet' : 'repsSet'
+  const next = [...rows]
+  next[i] = { ...next[i], [field]: value, [flag]: true }
+  for (let j = i + 1; j < next.length; j++) {
+    if (next[j].done || next[j][flag]) break
+    next[j] = { ...next[j], [field]: value }
+  }
+  return next
+}
+
+/**
  * Dòng mở ra lúc vào bảng nhập set, theo thứ tự ưu tiên:
  * 1. set đã log hôm đó (đã tick), nối thêm phần kế hoạch chưa làm;
  * 2. kế hoạch của ngày (chưa tick);

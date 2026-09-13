@@ -51,6 +51,11 @@
   --warn: #ff5f64;
   --ok: #a8ee32;
 
+  /* nhóm cơ chưa có màu mượn từ nhóm chất ở trên */
+  --m-biceps: #2dd4bf;
+  --m-triceps: #f472b6;
+  --m-forearm: #d4a373;
+
   /* Turbo: ngày chạy có kèm calisthenic. Cam nóng để tách hẳn khỏi lime của app. */
   --turbo: #ff9d2e;
   --grad-turbo: linear-gradient(120deg, #ffd166 0%, #ff9d2e 48%, #ff5f2e 100%);
@@ -2046,6 +2051,220 @@ input[type='number']::-webkit-inner-spin-button {
 @keyframes fade {
   from {
     opacity: 0;
+  }
+}
+
+/* ---------- trang toàn màn hình (luồng buổi tập) ---------- */
+
+/* Nằm trên thanh tab (40) nhưng dưới sheet/popup (50): popup hoàn thành buổi và
+   sheet phụ vẫn mở chồng lên được. */
+.page {
+  position: fixed;
+  inset: 0;
+  z-index: 46;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  padding-top: var(--safe-t);
+  animation: page-in 0.2s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+.page-head,
+.page-body,
+.page-foot {
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.page-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px var(--pad) 10px 6px;
+  border-bottom: 1px solid var(--line);
+  flex: none;
+}
+
+.page-back {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+}
+
+.page-back:active {
+  background: var(--surface-2);
+}
+
+.page-back .ico {
+  width: 24px;
+  height: 24px;
+  transform: rotate(90deg);
+}
+
+.page-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 14px var(--pad) 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.page-body > * {
+  flex-shrink: 0;
+}
+
+.page-foot {
+  flex: none;
+  padding: 10px var(--pad) calc(12px + var(--safe-b));
+  border-top: 1px solid var(--line);
+}
+
+@keyframes page-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page {
+    animation: none;
+  }
+}
+
+/* Hàng chip nhóm phụ: thụt vào dưới hàng nhóm chính, vạch màu nhóm bên trái */
+.sub-chips {
+  border-left: 2px solid var(--lime);
+  padding-left: 10px;
+}
+
+.sub-chips .chip {
+  min-height: 32px;
+  padding: 5px 12px;
+  font-size: 13px;
+}
+
+/* ---------- hoàn thành buổi tập ---------- */
+
+.finish-mark {
+  width: 64px;
+  height: 64px;
+  margin: 4px auto 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.finish-mark svg {
+  width: 64px;
+  height: 64px;
+  display: block;
+}
+
+.finish-spin {
+  transform-origin: 32px 32px;
+  animation: finish-spin 0.8s linear infinite;
+}
+
+.finish-circle {
+  stroke-dasharray: 176;
+  stroke-dashoffset: 176;
+  animation: finish-draw 0.35s ease-out forwards;
+}
+
+.finish-tick {
+  stroke-dasharray: 40;
+  stroke-dashoffset: 40;
+  animation: finish-draw 0.3s 0.28s ease-out forwards;
+}
+
+.finish-stats {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: fade 0.3s 0.45s ease both;
+}
+
+.finish-stats .grid4 > div > .num {
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.finish-block {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.group-row {
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  text-align: left;
+  font-size: 13px;
+  min-height: 30px;
+}
+
+.group-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  overflow: hidden;
+  display: flex;
+}
+
+.group-bar i {
+  display: block;
+  height: 100%;
+}
+
+.group-subs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding: 0 0 4px 82px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+@keyframes finish-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes finish-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .finish-spin {
+    animation-duration: 1.6s;
+  }
+  .finish-circle,
+  .finish-tick {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  .finish-stats {
+    animation: none;
   }
 }
 

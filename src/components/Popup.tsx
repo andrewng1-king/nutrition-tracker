@@ -1,4 +1,5 @@
-import { useEffect, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
+import { useOverlay } from '../lib/hooks'
 
 /**
  * Hộp thoại nhỏ giữa màn hình cho những câu hỏi một dòng. Khác `Sheet` ở chỗ
@@ -14,17 +15,7 @@ export function Popup({
   onClose: () => void
   children: ReactNode
 }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', onKey)
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = ''
-    }
-  }, [onClose])
+  useOverlay(onClose)
 
   return (
     <div

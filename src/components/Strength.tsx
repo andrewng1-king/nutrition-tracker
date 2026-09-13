@@ -1,17 +1,19 @@
 import { useMemo, useState } from 'react'
 import { n, shortDate } from '../lib/format'
 import { useData } from '../lib/hooks'
-import { LIFT_GROUPS, LIFT_GROUP_LABELS, liftDates, volumeShort, weeklyVolume } from '../lib/lift'
+import { liftDates, volumeShort, weeklyVolume, type WeekVolume } from '../lib/lift'
+import {
+  GROUP_COLOR,
+  LIFT_GROUPS,
+  LIFT_GROUP_LABELS,
+  LIFT_SUBS,
+  allKey,
+  subColor,
+  subKeyLabel,
+  type SubKey,
+} from '../lib/muscles'
 import { exerciseMap } from '../lib/storage'
 import type { AppData, Exercise, LiftGroup, LiftMode } from '../lib/types'
-
-export const GROUP_COLOR: Record<LiftGroup, string> = {
-  pull: 'var(--protein)',
-  push: 'var(--kcal)',
-  shoulder: 'var(--sugar)',
-  legs: 'var(--carb)',
-  abs: 'var(--fat)',
-}
 
 /**
  * Tiến bộ của cả chế độ. Tiến bộ từng bài nằm ở nút sparkline trong danh sách bài
@@ -36,6 +38,32 @@ export function Strength({ mode }: { mode: LiftMode }) {
   return <WeeklyVolume data={data} exById={exById} mode={mode} bodyKg={bodyKg} />
 }
 
+interface Segment {
+  key: string
+  label: string
+  color: string
+  value: (w: WeekVolume) => number
+}
+
+/** Các khúc của một cột: tất cả nhóm cơ, hoặc các nhóm phụ của nhóm đang mở. */
+function segmentsFor(focus: LiftGroup | null): Segment[] {
+  if (!focus) {
+    return LIFT_GROUPS.map((g) => ({
+      key: g,
+      label: LIFT_GROUP_LABELS[g],
+      color: GROUP_COLOR[g],
+      value: (w) => w.byGroup[g],
+    }))
+  }
+  const keys: SubKey[] = [...LIFT_SUBS[focus], allKey(focus)]
+  return keys.map((key) => ({
+    key,
+    label: subKeyLabel(key),
+    color: subColor(focus, key),
+    value: (w) => w.bySub[key] ?? 0,
+  }))
+}
+
 function WeeklyVolume({
   data,
   exById,
@@ -48,26 +76,35 @@ function WeeklyVolume({
   bodyKg: number
 }) {
   const [weeks, setWeeks] = useState<8 | 16>(8)
+  // Bấm một nhóm ở chú thích để tách cột theo nhóm phụ của nhóm đó.
+  const [focus, setFocus] = useState<LiftGroup | null>(null)
   const rows = useMemo(
     () => weeklyVolume(data, weeks, exById, undefined, { mode, bodyKg }),
     [data, weeks, exById, mode, bodyKg],
   )
-  const max = Math.max(...rows.map((r) => r.total), 1)
-  const active = LIFT_GROUPS.filter((g) => rows.some((r) => r.byGroup[g] > 0))
+  const segments = segmentsFor(focus)
+  const totalOf = (w: WeekVolume) => (focus ? w.byGroup[focus] : w.total)
+  const max = Math.max(...rows.map(totalOf), 1)
+  const active = segments.filter((s) => rows.some((r) => s.value(r) > 0))
+  const groups = LIFT_GROUPS.filter((g) => rows.some((r) => r.byGroup[g] > 0))
   const last = rows[rows.length - 1]
   const prev = rows[rows.length - 2]
+  const lastTotal = last ? totalOf(last) : 0
+  const prevTotal = prev ? totalOf(prev) : 0
 
   return (
     <section className="card">
       <div className="between" style={{ marginBottom: 10 }}>
-        <h2 className="h2">Volume theo tuần</h2>
+        <h2 className="h2">
+          Volume theo tuần{focus ? ` · ${LIFT_GROUP_LABELS[focus]}` : ''}
+        </h2>
         <span className="dim num">
-          {volumeShort(last?.total ?? 0)} kg
-          {prev && prev.total > 0 && last && (
+          {volumeShort(lastTotal)} kg
+          {prevTotal > 0 && (
             <>
               {'  '}
-              {last.total >= prev.total ? '+' : ''}
-              {n(((last.total - prev.total) / prev.total) * 100)}%
+              {lastTotal >= prevTotal ? '+' : ''}
+              {n(((lastTotal - prevTotal) / prevTotal) * 100)}%
             </>
           )}
         </span>
@@ -76,16 +113,13 @@ function WeeklyVolume({
       <div className="vol-chart">
         {rows.map((r) => (
           <div key={r.start} className="vol-col">
-            <span className="week-val">{r.total > 0 ? volumeShort(r.total) : ''}</span>
+            <span className="week-val">{totalOf(r) > 0 ? volumeShort(totalOf(r)) : ''}</span>
             <div className="vol-bar">
-              {LIFT_GROUPS.map((g) =>
-                r.byGroup[g] > 0 ? (
+              {segments.map((s) =>
+                s.value(r) > 0 ? (
                   <i
-                    key={g}
-                    style={{
-                      height: `${(r.byGroup[g] / max) * 100}%`,
-                      background: GROUP_COLOR[g],
-                    }}
+                    key={s.key}
+                    style={{ height: `${(s.value(r) / max) * 100}%`, background: s.color }}
                   />
                 ) : null,
               )}
@@ -95,15 +129,39 @@ function WeeklyVolume({
         ))}
       </div>
 
-      {active.length > 0 && (
+      {focus ? (
         <div className="spend-legend">
-          {active.map((g) => (
-            <span key={g} className="spend-tag">
-              <i className="swatch" style={{ background: GROUP_COLOR[g] }} />
-              {LIFT_GROUP_LABELS[g]}
+          <button className="spend-tag" onClick={() => setFocus(null)}>
+            ‹ Tất cả nhóm
+          </button>
+          {active.map((s) => (
+            <span key={s.key} className="spend-tag">
+              <i className="swatch" style={{ background: s.color }} />
+              {s.label}
             </span>
           ))}
         </div>
+      ) : (
+        groups.length > 0 && (
+          <div className="spend-legend">
+            {groups.map((g) => (
+              <button
+                key={g}
+                className="spend-tag"
+                onClick={() => setFocus(g)}
+                aria-label={`Xem ${LIFT_GROUP_LABELS[g]} theo nhóm phụ`}
+              >
+                <i className="swatch" style={{ background: GROUP_COLOR[g] }} />
+                {LIFT_GROUP_LABELS[g]}
+              </button>
+            ))}
+          </div>
+        )
+      )}
+      {!focus && groups.length > 0 && (
+        <p className="dim" style={{ margin: '8px 0 0' }}>
+          Bấm một nhóm để xem volume chia theo từng phần cơ.
+        </p>
       )}
 
       <div className="seg" style={{ marginTop: 12 }}>

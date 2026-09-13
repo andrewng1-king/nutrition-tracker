@@ -15,6 +15,9 @@ export interface DraftRow {
   /** đã tick = đã nằm trong log */
   done: boolean
   drops: DraftDrop[]
+  /** ô kg / rep đã được sửa tay — không tự chép theo set bên trên nữa */
+  kgSet?: boolean
+  repsSet?: boolean
 }
 
 export interface LiftDraft {

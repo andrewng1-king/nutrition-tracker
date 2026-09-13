@@ -122,7 +122,13 @@ function entryFrom(
   }
 }
 
-const GYM_GROUPS: LiftGroup[] = ['pull', 'push', 'legs', 'shoulder']
+/** Các cặp nhóm cơ hay tập chung một buổi. */
+const GYM_DAYS: LiftGroup[][] = [
+  ['back', 'biceps', 'forearm'],
+  ['chest', 'triceps'],
+  ['legs', 'abs'],
+  ['shoulder', 'triceps'],
+]
 
 /** Mức tạ hợp lý theo loại thiết bị — số người dùng đọc trên máy, không quy đổi. */
 function kgFor(gear: string): number {
@@ -151,9 +157,9 @@ function setsFor(gear: string): LiftSet[] {
   }))
 }
 
-function liftsFor(mode: 'gym' | 'calisthenic', group: LiftGroup | undefined, ts: number) {
+function liftsFor(mode: 'gym' | 'calisthenic', groups: LiftGroup[] | undefined, ts: number) {
   const pool = SEED_EXERCISES.filter(
-    (e) => e.mode === mode && (mode === 'calisthenic' || !group || e.group === group),
+    (e) => e.mode === mode && (mode === 'calisthenic' || !groups || groups.includes(e.group)),
   )
   const chosen = sample(pool, mode === 'gym' ? int(4, 6) : int(3, 5))
   return chosen.map<LiftEntry>((ex, i) => ({
@@ -231,8 +237,7 @@ function buildDay(date: string, plan: Plan, cheatDay: boolean, weightKg: number)
 
   if (plan === 'gym') {
     types.push('lift')
-    day.liftGroup = pick(GYM_GROUPS)
-    day.lifts = liftsFor('gym', day.liftGroup, ts + 11 * 3600_000)
+    day.lifts = liftsFor('gym', pick(GYM_DAYS), ts + 11 * 3600_000)
   }
 
   if (plan === 'calisthenic') {

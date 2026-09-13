@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ExerciseForm } from '../components/ExerciseForm'
 import { ExerciseList } from '../components/ExerciseList'
-import { LiftSheet } from '../components/LiftSheet'
+import { LiftSession } from '../components/LiftSession'
 import { ProgressSheet } from '../components/ProgressSheet'
 import { RunProgress } from '../components/RunProgress'
 import { Sheet } from '../components/Sheet'
@@ -10,8 +10,9 @@ import { SubTabs } from '../components/SubTabs'
 import type { LiftDraft } from '../lib/draft'
 import { dayLabel, n } from '../lib/format'
 import { useData } from '../lib/hooks'
-import { LIFT_GROUP_LABELS, liftDates, summarize, volumeShort } from '../lib/lift'
+import { liftDates, summarize, volumeShort } from '../lib/lift'
 import { dateKey } from '../lib/macros'
+import { sessionLabel } from '../lib/muscles'
 import { exerciseMap, getDay } from '../lib/storage'
 import type { Exercise, LiftMode } from '../lib/types'
 
@@ -89,6 +90,7 @@ function LiftModeView({
   )
   const todaysPlan = (day.plan ?? []).filter((p) => exById.get(p.exerciseId)?.mode === mode)
   const summary = summarize(todaysLifts, exById, data.settings.weightKg)
+  const label = sessionLabel(todaysLifts.length > 0 ? todaysLifts : todaysPlan, exById)
 
   return (
     <>
@@ -96,7 +98,7 @@ function LiftModeView({
         <div className="between" style={{ marginBottom: 10 }}>
           <h2 className="h2">
             {dayLabel(today)}
-            {day.liftGroup && mode === 'gym' ? ` · ${LIFT_GROUP_LABELS[day.liftGroup]}` : ''}
+            {label ? ` · ${label}` : ''}
           </h2>
           {todaysLifts.length > 0 && (
             <span className="dim num">{volumeShort(summary.volume)} kg</span>
@@ -139,7 +141,7 @@ function LiftModeView({
       />
 
       {session && (
-        <LiftSheet
+        <LiftSession
           key={`${session.date}-${session.exerciseId ?? ''}`}
           date={session.date}
           mode={mode}
@@ -161,7 +163,7 @@ function LiftModeView({
           <ExerciseForm
             key={editing?.id ?? 'new'}
             existing={editing ?? undefined}
-            defaultGroup={editing?.group ?? 'pull'}
+            defaultGroup={editing?.group ?? (mode === 'calisthenic' ? 'back' : 'chest')}
             mode={mode}
             onDone={() => {
               setEditing(null)
@@ -205,12 +207,13 @@ function SessionHistory({ mode, onOpen }: { mode: LiftMode; onOpen: (date: strin
           )
           const s = summarize(entries, exById, data.settings.weightKg)
           const names = entries.flatMap((e) => exById.get(e.exerciseId)?.name ?? [])
+          const label = sessionLabel(entries, exById)
           return (
             <button key={date} className="list-item" onClick={() => onOpen(date)}>
               <span className="grow">
                 <span className="truncate lift-name" style={{ display: 'block' }}>
                   {dayLabel(date)}
-                  {day?.liftGroup ? ` · ${LIFT_GROUP_LABELS[day.liftGroup]}` : ''}
+                  {label ? ` · ${label}` : ''}
                   <span className="dim"> · {s.exercises} bài · {s.sets} set</span>
                 </span>
                 <span className="dim truncate" style={{ display: 'block' }}>

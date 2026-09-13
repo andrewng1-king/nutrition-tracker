@@ -12,9 +12,9 @@ import {
   type LiftPoint,
 } from '../lib/lift'
 import { dateKey, parseDateKey } from '../lib/macros'
+import { GROUP_COLOR } from '../lib/muscles'
 import type { Exercise } from '../lib/types'
 import { Sheet } from './Sheet'
-import { GROUP_COLOR } from './Strength'
 
 type MetricKey = 'e1rm' | 'top' | 'volume' | 'reps'
 

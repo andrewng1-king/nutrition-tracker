@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { DraftRow } from './draft'
-import { doneSets, initialRows, pendingIndexes, rowFromSet, rowToSet } from './setRows'
+import {
+  doneSets,
+  editRowField,
+  initialRows,
+  pendingIndexes,
+  rowFromSet,
+  rowToSet,
+} from './setRows'
 
 const row = (kg: string, reps: string, done = false, drops: DraftRow['drops'] = []): DraftRow => ({
   kg,
@@ -40,6 +47,47 @@ describe('done vs pending', () => {
 
   it('treats a bodyweight row without kg as valid', () => {
     expect(pendingIndexes(rows, true)).toEqual([1, 2])
+  })
+})
+
+describe('editRowField — tự chép xuống', () => {
+  const kgs = (rows: DraftRow[]) => rows.map((r) => r.kg)
+
+  it('copies a new weight down to the untouched sets below', () => {
+    const rows = editRowField([row('40', '10'), row('40', '10'), row('40', '8')], 0, 'kg', '42,5')
+    expect(kgs(rows)).toEqual(['42,5', '42,5', '42,5'])
+    // chỉ ô vừa sửa đổi — rep giữ nguyên
+    expect(rows.map((r) => r.reps)).toEqual(['10', '10', '8'])
+  })
+
+  it('never touches the sets above', () => {
+    const rows = editRowField([row('40', '10'), row('40', '10'), row('40', '8')], 1, 'reps', '9')
+    expect(rows.map((r) => r.reps)).toEqual(['10', '9', '9'])
+  })
+
+  it('stops at a ticked set — đó là số thật đã tập', () => {
+    const rows = editRowField(
+      [row('40', '10'), row('40', '10', true), row('40', '8')],
+      0,
+      'kg',
+      '45',
+    )
+    expect(kgs(rows)).toEqual(['45', '40', '40'])
+  })
+
+  it('stops at a set whose field was edited by hand, and keeps the sets below it', () => {
+    let rows = [row('40', '10'), row('40', '10'), row('40', '10')]
+    rows = editRowField(rows, 1, 'kg', '35') // set 2 sửa tay, set 3 theo set 2
+    rows = editRowField(rows, 0, 'kg', '45')
+    expect(kgs(rows)).toEqual(['45', '35', '35'])
+  })
+
+  it('tracks kg and reps separately', () => {
+    let rows = [row('40', '10'), row('40', '10')]
+    rows = editRowField(rows, 1, 'reps', '8') // set 2 sửa tay rep, kg vẫn theo
+    rows = editRowField(rows, 0, 'kg', '45')
+    rows = editRowField(rows, 0, 'reps', '12')
+    expect(rows[1]).toMatchObject({ kg: '45', reps: '8' })
   })
 })
 

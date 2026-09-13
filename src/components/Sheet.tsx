@@ -1,4 +1,5 @@
-import { useEffect, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
+import { useOverlay } from '../lib/hooks'
 
 interface Props {
   title: string
@@ -14,17 +15,7 @@ interface Props {
 }
 
 export function Sheet({ title, onClose, children, action, size = 'auto' }: Props) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', onKey)
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = ''
-    }
-  }, [onClose])
+  useOverlay(onClose)
 
   return (
     <div

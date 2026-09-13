@@ -1,6 +1,7 @@
 import { SEED_EXERCISES } from '../data/exercises'
 import { SEED_FOODS } from '../data/foods'
 import { DEFAULT_SETTINGS, dateKey, dayTypesFor } from './macros'
+import { normalizeExercise } from './muscles'
 import type {
   AppData,
   DayLog,
@@ -9,7 +10,6 @@ import type {
   DayType,
   Food,
   LiftEntry,
-  LiftGroup,
   LiftSet,
   MealSlot,
   PlanItem,
@@ -132,13 +132,16 @@ export function isOverriddenSeed(id: string, d: AppData = data): boolean {
 
 // ---------------- exercises ----------------
 
-/** Bài có sẵn + bài tự thêm. Bản custom trùng id sẽ ghi đè bài gốc (đổi tên, đổi quy ước kg). */
+const SEED_BY_ID = new Map(SEED_EXERCISES.map((e) => [e.id, e]))
+
+/**
+ * Bài có sẵn + bài tự thêm. Bản custom trùng id sẽ ghi đè bài gốc (đổi tên, đổi quy ước kg).
+ * Bản lưu từ thời nhóm split được quy về nhóm cơ ngay lúc đọc.
+ */
 export function allExercises(d: AppData = data): Exercise[] {
-  const overridden = new Set((d.customExercises ?? []).map((e) => e.id))
-  return [
-    ...SEED_EXERCISES.filter((e) => !overridden.has(e.id)),
-    ...(d.customExercises ?? []),
-  ]
+  const custom = (d.customExercises ?? []).map((e) => normalizeExercise(e, SEED_BY_ID.get(e.id)))
+  const overridden = new Set(custom.map((e) => e.id))
+  return [...SEED_EXERCISES.filter((e) => !overridden.has(e.id)), ...custom]
 }
 
 export function exerciseMap(d: AppData = data): Map<string, Exercise> {
@@ -294,10 +297,6 @@ export function removeLiftEntry(date: string, exerciseId: string) {
   setLiftEntry(date, exerciseId, [])
 }
 
-export function setLiftGroup(date: string, group: LiftGroup | undefined) {
-  setDayField(date, { liftGroup: group })
-}
-
 // ---------------- nhãn ngày ----------------
 
 /**
@@ -351,7 +350,7 @@ export function toggleDayType(date: string, type: DayType, current: DayType[]) {
 
 /**
  * Xoá buổi tập của một chế độ: chỉ các bài thuộc `exerciseIds`, để xoá buổi gym
- * không cuốn luôn buổi calisthenic cùng ngày. Không còn bài nào thì bỏ cả nhãn nhóm.
+ * không cuốn luôn buổi calisthenic cùng ngày.
  */
 export function clearWorkout(date: string, exerciseIds: string[]) {
   const drop = new Set(exerciseIds)
@@ -363,7 +362,6 @@ export function clearWorkout(date: string, exerciseIds: string[]) {
         ...day,
         lifts: lifts.length > 0 ? lifts : undefined,
         plan: plan.length > 0 ? plan : undefined,
-        liftGroup: lifts.length > 0 || plan.length > 0 ? day.liftGroup : undefined,
       }
     }),
   )

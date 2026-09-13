@@ -4,31 +4,30 @@ import { dayLabel, matchName, n, shortDate, weekday } from '../lib/format'
 import { useData, useDrafts } from '../lib/hooks'
 import {
   GEAR_LABELS,
-  LIFT_GROUPS,
-  LIFT_GROUP_LABELS,
   LIFT_KCAL_NOTE,
   e1rm,
   entryVolume,
   isBodyweight,
   kgStepFor,
-  lastSessionFor,
   lastSetsFor,
   parseKg,
   planFromSession,
   planFromTemplate,
   priorBestE1rm,
+  recentSessions,
   setLabel,
   setReps,
   setVolume,
   shortSet,
   suggestDropKg,
   summarize,
-  topSet,
   volumeShort,
 } from '../lib/lift'
 import { dateKey } from '../lib/macros'
+import { LIFT_GROUP_LABELS, sessionLabel } from '../lib/muscles'
 import {
   doneSets,
+  editRowField,
   initialRows,
   isValidSet,
   kgInput,
@@ -44,20 +43,14 @@ import {
   getDay,
   saveWorkoutTemplate,
   setLiftEntry,
-  setLiftGroup,
 } from '../lib/storage'
-import type {
-  AppData,
-  Exercise,
-  LiftEntry,
-  LiftGroup,
-  LiftMode,
-  LiftSet,
-  PlanItem,
-} from '../lib/types'
+import type { AppData, Exercise, LiftEntry, LiftMode, LiftSet, PlanItem } from '../lib/types'
 import { ExerciseForm } from './ExerciseForm'
+import { FinishSession } from './FinishSession'
+import { GroupFilter, NO_FILTER, matchesFilter } from './GroupFilter'
 import { IconCheck } from './icons'
-import { Sheet } from './Sheet'
+import { Page } from './Page'
+import { Stat } from './Stat'
 import { Stepper } from './Stepper'
 
 type View =
@@ -67,7 +60,11 @@ type View =
   | { kind: 'form'; exerciseId?: string }
   | { kind: 'save-template' }
 
-export function LiftSheet({
+/**
+ * Luồng buổi tập, mỗi bước một trang toàn màn hình: buổi tập → chọn bài → nhập
+ * set → sửa bài. Nút ‹ lùi đúng một bước, về tới trang buổi tập thì đóng hẳn.
+ */
+export function LiftSession({
   date,
   mode,
   onClose,
@@ -91,84 +88,76 @@ export function LiftSheet({
   const [view, setView] = useState<View>(
     initialExerciseId ? { kind: 'edit', exerciseId: initialExerciseId } : { kind: 'session' },
   )
+  const [finishing, setFinishing] = useState(false)
 
-  // Sheet gym chỉ hiện bài gym, sheet calisthenic chỉ hiện bài thể trọng.
+  // Trang gym chỉ hiện bài gym, trang calisthenic chỉ hiện bài thể trọng.
   const inMode = (exerciseId: string) => exById.get(exerciseId)?.mode === mode
   const lifts = (day.lifts ?? []).filter((e) => inMode(e.exerciseId))
   const plan = (day.plan ?? []).filter((p) => inMode(p.exerciseId))
-  const group = day.liftGroup
+  const toSession = () => setView({ kind: 'session' })
 
   if (view.kind === 'pick') {
     return (
-      <Sheet title="Chọn bài" onClose={() => setView({ kind: 'session' })} size="full">
+      <Page title="Chọn bài" onBack={toSession}>
         <PickView
           exercises={exercises}
-          group={group}
           date={date}
           loggedIds={new Set(lifts.map((e) => e.exerciseId))}
           plannedIds={new Set(plan.map((p) => p.exerciseId))}
           onPick={(id) => setView({ kind: 'edit', exerciseId: id })}
           onCreate={() => setView({ kind: 'form' })}
         />
-      </Sheet>
+      </Page>
     )
   }
 
   if (view.kind === 'form') {
+    const back = () =>
+      setView(view.exerciseId ? { kind: 'edit', exerciseId: view.exerciseId } : { kind: 'pick' })
     return (
-      <Sheet
-        title={view.exerciseId ? 'Sửa bài tập' : 'Bài tập mới'}
-        onClose={() => setView({ kind: 'session' })}
-      >
+      <Page title={view.exerciseId ? 'Sửa bài tập' : 'Bài tập mới'} onBack={back}>
         <ExerciseForm
           existing={view.exerciseId ? exById.get(view.exerciseId) : undefined}
-          defaultGroup={group ?? 'pull'}
+          defaultGroup={mode === 'calisthenic' ? 'back' : 'chest'}
           mode={mode}
           onDone={(id) => setView({ kind: 'edit', exerciseId: id })}
-          onCancel={() =>
-            setView(
-              view.exerciseId
-                ? { kind: 'edit', exerciseId: view.exerciseId }
-                : { kind: 'pick' },
-            )
-          }
+          onCancel={back}
         />
-      </Sheet>
+      </Page>
     )
   }
 
   if (view.kind === 'edit') {
     const ex = exById.get(view.exerciseId)
     if (!ex) {
-      setView({ kind: 'session' })
+      toSession()
       return null
     }
     return (
-      <Sheet title={ex.name} onClose={() => setView({ kind: 'session' })}>
+      <Page title={ex.name} onBack={toSession}>
         <SetEditor
           key={ex.id}
           ex={ex}
           date={date}
           planned={plan.find((p) => p.exerciseId === ex.id)?.sets}
-          onDone={() => setView({ kind: 'session' })}
+          onDone={toSession}
           onEditExercise={() => setView({ kind: 'form', exerciseId: ex.id })}
         />
-      </Sheet>
+      </Page>
     )
   }
 
   if (view.kind === 'save-template') {
     return (
-      <Sheet title="Lưu thành buổi mẫu" onClose={() => setView({ kind: 'session' })}>
+      <Page title="Lưu thành buổi mẫu" onBack={toSession}>
         <SaveTemplateView
           data={data}
           mode={mode}
-          group={group}
           lifts={lifts}
           exById={exById}
-          onDone={() => setView({ kind: 'session' })}
+          onDone={toSession}
         />
-      </Sheet>
+      </Page>
     )
   }
 
@@ -177,34 +166,37 @@ export function LiftSheet({
   const unlogged = plan.filter((p) => !lifts.some((e) => e.exerciseId === p.exerciseId))
   const fresh = lifts.length === 0 && plan.length === 0
   const title = mode === 'gym' ? 'Buổi tập tạ' : 'Buổi calisthenic'
+  const label = sessionLabel(lifts.length > 0 ? lifts : plan, exById)
+  // Set đã điền mà chưa tick, nằm trong nháp — vẫn đủ để bấm hoàn thành.
+  const pendingSets = Object.values(drafts)
+    .filter((d) => d.date === date && inMode(d.exerciseId))
+    .reduce((sum, d) => {
+      const ex = exById.get(d.exerciseId)
+      return sum + (ex ? pendingIndexes(d.rows, isBodyweight(ex)).length : 0)
+    }, 0)
+  const canFinish = lifts.length > 0 || pendingSets > 0
 
   return (
-    <Sheet
+    <Page
       title={date === dateKey() ? title : `${title} · ${dayLabel(date)}`}
-      onClose={onClose}
+      onBack={onClose}
+      footer={
+        canFinish && (
+          <button className="btn primary full" onClick={() => setFinishing(true)}>
+            Hoàn thành buổi tập
+          </button>
+        )
+      }
     >
-      <div className="field">
-        <label>Nhóm buổi tập</label>
-        <div className="chips">
-          {LIFT_GROUPS.map((g) => (
-            <button
-              key={g}
-              className="chip"
-              aria-pressed={group === g}
-              onClick={() => setLiftGroup(date, group === g ? undefined : g)}
-            >
-              {LIFT_GROUP_LABELS[g]}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {fresh && (
-        <StartSession data={data} date={date} mode={mode} group={group} exById={exById} />
-      )}
+      {fresh && <StartSession data={data} date={date} mode={mode} exById={exById} />}
 
       {lifts.length > 0 && (
         <div className="card ink">
+          {label && (
+            <h2 className="h2" style={{ marginBottom: 10 }}>
+              {label}
+            </h2>
+          )}
           <div className="grid4" style={{ textAlign: 'center' }}>
             <Stat label="bài" value={n(total.exercises)} />
             <Stat label="set" value={n(total.sets)} />
@@ -257,7 +249,10 @@ export function LiftSheet({
         </div>
       )}
 
-      <button className="btn primary full" onClick={() => setView({ kind: 'pick' })}>
+      <button
+        className={`btn full${canFinish ? '' : ' primary'}`}
+        onClick={() => setView({ kind: 'pick' })}
+      >
         + Thêm bài
       </button>
 
@@ -298,7 +293,16 @@ export function LiftSheet({
           Xoá cả buổi tập
         </button>
       )}
-    </Sheet>
+
+      {finishing && (
+        <FinishSession
+          date={date}
+          mode={mode}
+          onCancel={() => setFinishing(false)}
+          onDone={onClose}
+        />
+      )}
+    </Page>
   )
 }
 
@@ -334,74 +338,57 @@ function sessionRows(
 const planLabel = (sets: LiftSet[]) =>
   sets.map((s) => (s.reps > 0 ? shortSet(s) : '?')).join('  ·  ')
 
-// ---------------- bắt đầu buổi: lần trước + buổi mẫu ----------------
+// ---------------- bắt đầu buổi: lặp lại buổi gần đây + buổi mẫu ----------------
 
 function StartSession({
   data,
   date,
   mode,
-  group,
   exById,
 }: {
   data: AppData
   date: string
   mode: LiftMode
-  group?: LiftGroup
   exById: Map<string, Exercise>
 }) {
-  const last = group ? lastSessionFor(data, mode, group, date, exById) : undefined
-  const lastEntries = (last?.entries ?? []).filter((e) => exById.has(e.exerciseId))
+  const recent = recentSessions(data, mode, date, exById)
   const templates = (data.workoutTemplates ?? [])
     .filter((t) => t.mode === mode)
-    .sort(
-      (a, b) =>
-        Number(b.group === group) - Number(a.group === group) ||
-        a.name.localeCompare(b.name, 'vi'),
-    )
+    .sort((a, b) => a.name.localeCompare(b.name, 'vi'))
 
   return (
     <>
-      {last && lastEntries.length > 0 ? (
+      {recent.length > 0 ? (
         <div className="card start-card col">
-          <div className="between">
-            <h3 className="h2">Lần trước · {LIFT_GROUP_LABELS[group!]}</h3>
-            <span className="dim">
-              {weekday(last.date)} {shortDate(last.date)}
-            </span>
-          </div>
+          <h3 className="h2">Lặp lại buổi gần đây</h3>
           <p className="muted" style={{ margin: 0 }}>
-            Buổi {LIFT_GROUP_LABELS[group!].toLowerCase()} gần nhất bạn tập {lastEntries.length}{' '}
-            bài này. Log sẵn để hôm nay chỉ việc tick từng set?
+            Log sẵn bài và set của một buổi cũ, hôm nay chỉ việc tick từng set.
           </p>
           <div className="list">
-            {lastEntries.map((e) => {
-              const ex = exById.get(e.exerciseId)!
-              const top = topSet(e)
+            {recent.map((s) => {
+              const sets = s.entries.reduce((sum, e) => sum + e.sets.length, 0)
               return (
-                <div key={e.id} className="list-item compact">
-                  <span className="grow truncate">{ex.name}</span>
-                  <span className="dim num">
-                    {e.sets.length} set{top ? ` · ${setLabel(ex, top)}` : ''}
+                <div key={s.date} className="list-item compact">
+                  <span className="grow">
+                    <span className="truncate lift-name" style={{ display: 'block' }}>
+                      {sessionLabel(s.entries, exById) || 'Buổi tập'}
+                    </span>
+                    <span className="dim">
+                      {weekday(s.date)} {shortDate(s.date)} · {s.entries.length} bài · {sets} set
+                    </span>
                   </span>
+                  <button className="btn sm" onClick={() => addToPlan(date, planFromSession(s))}>
+                    Log sẵn
+                  </button>
                 </div>
               )
             })}
           </div>
-          <button
-            className="btn primary full"
-            onClick={() => addToPlan(date, planFromSession({ ...last, entries: lastEntries }))}
-          >
-            Log sẵn {lastEntries.length} bài
-          </button>
         </div>
-      ) : group ? (
-        <p className="muted" style={{ margin: 0 }}>
-          Chưa có buổi {LIFT_GROUP_LABELS[group].toLowerCase()} nào trước{' '}
-          {dayLabel(date).toLowerCase()} để gợi ý lại.
-        </p>
       ) : (
         <p className="muted" style={{ margin: 0 }}>
-          Chọn nhóm buổi tập để xem lần trước tập những bài gì và log sẵn.
+          Chưa có buổi nào trước {dayLabel(date).toLowerCase()} để lặp lại — bấm Thêm bài để
+          bắt đầu.
         </p>
       )}
 
@@ -412,6 +399,10 @@ function StartSession({
             {templates.map((t) => {
               const items = t.items.filter((i) => exById.has(i.exerciseId))
               const sets = items.reduce((sum, i) => sum + i.sets, 0)
+              const label = sessionLabel(
+                items.map((i) => ({ exerciseId: i.exerciseId, sets: Array(i.sets) })),
+                exById,
+              )
               return (
                 <div key={t.id} className="list-item compact">
                   <span className="grow">
@@ -419,17 +410,14 @@ function StartSession({
                       {t.name}
                     </span>
                     <span className="dim">
-                      {t.group ? `${LIFT_GROUP_LABELS[t.group]} · ` : ''}
+                      {label ? `${label} · ` : ''}
                       {items.length} bài · {sets} set
                     </span>
                   </span>
                   <button
                     className="btn sm"
                     disabled={items.length === 0}
-                    onClick={() => {
-                      addToPlan(date, planFromTemplate(data, { ...t, items }, date))
-                      if (t.group && !group) setLiftGroup(date, t.group)
-                    }}
+                    onClick={() => addToPlan(date, planFromTemplate(data, { ...t, items }, date))}
                   >
                     Dùng
                   </button>
@@ -448,21 +436,20 @@ function StartSession({
 function SaveTemplateView({
   data,
   mode,
-  group,
   lifts,
   exById,
   onDone,
 }: {
   data: AppData
   mode: LiftMode
-  group?: LiftGroup
   lifts: LiftEntry[]
   exById: Map<string, Exercise>
   onDone: () => void
 }) {
   const existing = (data.workoutTemplates ?? []).filter((t) => t.mode === mode)
   const [name, setName] = useState(() => {
-    const base = group ? LIFT_GROUP_LABELS[group] : mode === 'gym' ? 'Buổi tập' : 'Calisthenic'
+    const base =
+      sessionLabel(lifts, exById) || (mode === 'gym' ? 'Buổi tập' : 'Calisthenic')
     const taken = new Set(existing.map((t) => t.name.trim().toLowerCase()))
     const letter = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
       .split('')
@@ -482,7 +469,7 @@ function SaveTemplateView({
           id="wt-name"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="VD: Kéo A"
+          placeholder="VD: Ngực · Tay sau A"
           autoFocus
         />
       </div>
@@ -502,7 +489,7 @@ function SaveTemplateView({
         className="btn primary full"
         disabled={!name.trim() || items.length === 0}
         onClick={() => {
-          saveWorkoutTemplate({ id: clash?.id, name: name.trim(), mode, group, items })
+          saveWorkoutTemplate({ id: clash?.id, name: name.trim(), mode, items })
           onDone()
         }}
       >
@@ -516,7 +503,6 @@ function SaveTemplateView({
 
 function PickView({
   exercises,
-  group,
   date,
   loggedIds,
   plannedIds,
@@ -524,7 +510,6 @@ function PickView({
   onCreate,
 }: {
   exercises: Exercise[]
-  group?: LiftGroup
   date: string
   loggedIds: Set<string>
   plannedIds: Set<string>
@@ -533,16 +518,12 @@ function PickView({
 }) {
   const data = useData()
   const [query, setQuery] = useState('')
-  const [filter, setFilter] = useState<LiftGroup | 'all'>(group ?? 'all')
+  const [filter, setFilter] = useState(NO_FILTER)
 
   const list = exercises
-    .filter((ex) => filter === 'all' || ex.group === filter)
-    .filter((ex) => matchName(ex.name, query))
-    // bài của nhóm buổi tập lên trước, rồi theo tên
-    .sort((a, b) => {
-      const g = Number(b.group === group) - Number(a.group === group)
-      return g !== 0 ? g : a.name.localeCompare(b.name, 'vi')
-    })
+    .filter((ex) => matchesFilter(ex, filter))
+    .filter((ex) => matchName(ex.name, query) || matchName(ex.note ?? '', query))
+    .sort((a, b) => a.name.localeCompare(b.name, 'en'))
 
   return (
     <>
@@ -553,21 +534,7 @@ function PickView({
         autoFocus
       />
 
-      <div className="chips">
-        <button className="chip" aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>
-          Tất cả
-        </button>
-        {LIFT_GROUPS.map((g) => (
-          <button
-            key={g}
-            className="chip"
-            aria-pressed={filter === g}
-            onClick={() => setFilter(g)}
-          >
-            {LIFT_GROUP_LABELS[g]}
-          </button>
-        ))}
-      </div>
+      <GroupFilter exercises={exercises} value={filter} onChange={setFilter} />
 
       {list.length === 0 ? (
         <p className="empty">Không có bài nào khớp.</p>
@@ -683,6 +650,10 @@ function SetEditor({
   const patchRow = (i: number, patch: Partial<DraftRow>) =>
     change((prev) => prev.map((r, j) => (j === i ? { ...r, ...patch } : r)))
 
+  // Sửa kg / rep thì các set bên dưới chưa tick, chưa sửa tay tự chép theo.
+  const editField = (i: number, field: 'kg' | 'reps', value: string) =>
+    change((prev) => editRowField(prev, i, field, value))
+
   const patchDrop = (i: number, j: number, patch: Partial<DraftRow['drops'][number]>) =>
     change((prev) =>
       prev.map((r, k) =>
@@ -736,8 +707,6 @@ function SetEditor({
   return (
     <>
       <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
-        <span className="badge est">{LIFT_GROUP_LABELS[ex.group]}</span>
-        <span className="badge est">{GEAR_LABELS[ex.gear]}</span>
         {ex.perSide && <span className="badge run">số ghi là mỗi bên</span>}
         <button className="btn sm" style={{ marginLeft: 'auto' }} onClick={onEditExercise}>
           Sửa bài
@@ -790,14 +759,14 @@ function SetEditor({
                 value={r.kg}
                 step={step}
                 label={`mức tạ set ${i + 1}`}
-                onChange={(v) => patchRow(i, { kg: v })}
+                onChange={(v) => editField(i, 'kg', v)}
               />
               <Stepper
                 value={r.reps}
                 step={1}
                 integer
                 label={`rep set ${i + 1}`}
-                onChange={(v) => patchRow(i, { reps: v })}
+                onChange={(v) => editField(i, 'reps', v)}
               />
               <button
                 className="set-tick"
@@ -870,8 +839,8 @@ function SetEditor({
       )}
 
       <p className="dim" style={{ margin: 0 }}>
-        Tập xong set nào tick set đó — set đã tick vào log ngay. Bấm số thứ tự để thêm nấc
-        dropset hoặc xoá set.
+        Tập xong set nào tick set đó — set đã tick vào log ngay. Sửa số một set thì các set
+        bên dưới chưa tick tự chép theo. Bấm số thứ tự để thêm nấc dropset hoặc xoá set.
       </p>
 
       <button
@@ -958,17 +927,5 @@ function SetEditor({
         </button>
       )}
     </>
-  )
-}
-
-function Stat({ label, value, unit }: { label: string; value: string; unit?: string }) {
-  return (
-    <div>
-      <div className="num" style={{ fontSize: 20, fontWeight: 700 }}>
-        {value}
-        {unit && <span style={{ fontSize: 11, fontWeight: 600, opacity: 0.65 }}> {unit}</span>}
-      </div>
-      <div className="dim">{label}</div>
-    </div>
   )
 }

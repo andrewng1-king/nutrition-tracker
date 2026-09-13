@@ -362,6 +362,24 @@ export async function syncNow(): Promise<void> {
   }
 }
 
+/**
+ * Đẩy ngay phần đang chờ thay vì đợi hẹn giờ, và chờ xong tối đa `timeoutMs`.
+ * Dùng cho nút "Hoàn thành buổi tập" — vòng loading quay đúng bằng thời gian lưu
+ * thật. 'local' = chưa đăng nhập, dữ liệu chỉ nằm trên máy; 'pending' = mất
+ * mạng hoặc quá giờ, phần còn lại tự đẩy lên sau.
+ */
+export async function flushSync(timeoutMs = 4000): Promise<'synced' | 'pending' | 'local'> {
+  if (!supabase || !userId) return 'local'
+  clearTimeout(pushTimer)
+  const deadline = Date.now() + timeoutMs
+  const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+  await Promise.race([syncNow(), wait(timeoutMs)])
+  // Đang có lượt đồng bộ khác chạy thì syncNow chỉ hẹn thêm một lượt rồi về ngay.
+  while ((running || again) && Date.now() < deadline) await wait(100)
+  const done = !running && !again && state.status === 'idle' && state.pending === 0
+  return done && !state.choice ? 'synced' : 'pending'
+}
+
 function schedulePush() {
   if (!userId) return
   clearTimeout(pushTimer)

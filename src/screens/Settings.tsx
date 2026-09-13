@@ -1,12 +1,13 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { n } from '../lib/format'
 import { useData, useSync } from '../lib/hooks'
-import { LIFT_GROUP_LABELS } from '../lib/lift'
 import { computeTargets } from '../lib/macros'
+import { sessionLabel } from '../lib/muscles'
 import {
   deleteTemplate,
   deleteWorkoutTemplate,
   downloadBackup,
+  exerciseMap,
   importJSON,
   resetAll,
   setSettings,
@@ -28,6 +29,7 @@ export function Settings() {
   const sync = useSync()
   const signedIn = Boolean(sync.email)
   const s = data.settings
+  const exById = useMemo(() => exerciseMap(data), [data])
   const fileRef = useRef<HTMLInputElement>(null)
   const [message, setMessage] = useState<string | null>(null)
 
@@ -172,27 +174,33 @@ export function Settings() {
           </p>
         ) : (
           <div className="list">
-            {(data.workoutTemplates ?? []).map((t) => (
-              <div key={t.id} className="list-item">
-                <span className="grow">
-                  <span className="truncate" style={{ display: 'block' }}>
-                    {t.name}
+            {(data.workoutTemplates ?? []).map((t) => {
+              const label = sessionLabel(
+                t.items.map((i) => ({ exerciseId: i.exerciseId, sets: Array(i.sets) })),
+                exById,
+              )
+              return (
+                <div key={t.id} className="list-item">
+                  <span className="grow">
+                    <span className="truncate" style={{ display: 'block' }}>
+                      {t.name}
+                    </span>
+                    <span className="dim">
+                      {t.mode === 'gym' ? 'Gym' : 'Calisthenic'}
+                      {label ? ` · ${label}` : ''} · {t.items.length} bài
+                    </span>
                   </span>
-                  <span className="dim">
-                    {t.mode === 'gym' ? 'Gym' : 'Calisthenic'}
-                    {t.group ? ` · ${LIFT_GROUP_LABELS[t.group]}` : ''} · {t.items.length} bài
-                  </span>
-                </span>
-                <button
-                  className="btn sm danger"
-                  onClick={() => {
-                    if (confirm(`Xoá buổi mẫu “${t.name}”?`)) deleteWorkoutTemplate(t.id)
-                  }}
-                >
-                  Xoá
-                </button>
-              </div>
-            ))}
+                  <button
+                    className="btn sm danger"
+                    onClick={() => {
+                      if (confirm(`Xoá buổi mẫu “${t.name}”?`)) deleteWorkoutTemplate(t.id)
+                    }}
+                  >
+                    Xoá
+                  </button>
+                </div>
+              )
+            })}
           </div>
         )}
       </section>

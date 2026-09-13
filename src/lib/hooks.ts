@@ -16,6 +16,38 @@ export function useSync(): SyncState {
   return useSyncExternalStore(syncStore.subscribe, syncStore.get, syncStore.get)
 }
 
+const overlays: { close: () => void }[] = []
+
+function onOverlayKey(e: KeyboardEvent) {
+  if (e.key === 'Escape') overlays[overlays.length - 1]?.close()
+}
+
+/**
+ * Lớp phủ (sheet, popup, trang buổi tập): khoá cuộn trang nền và Escape để đóng.
+ * Giữ một ngăn xếp các lớp đang mở — Escape chỉ đóng lớp trên cùng, và popup
+ * nằm trên trang buổi tập đóng trước thì không mở khoá cuộn cho cả trang.
+ */
+export function useOverlay(onClose: () => void) {
+  const close = useRef(onClose)
+  close.current = onClose
+
+  useEffect(() => {
+    const entry = { close: () => close.current() }
+    if (overlays.length === 0) {
+      document.addEventListener('keydown', onOverlayKey)
+      document.body.style.overflow = 'hidden'
+    }
+    overlays.push(entry)
+    return () => {
+      overlays.splice(overlays.indexOf(entry), 1)
+      if (overlays.length === 0) {
+        document.removeEventListener('keydown', onOverlayKey)
+        document.body.style.overflow = ''
+      }
+    }
+  }, [])
+}
+
 /**
  * Bật `true` trong `ms` mỗi khi `on` chuyển từ tắt sang bật — dùng cho hiệu ứng
  * "vừa được cường hoá" của Turbo.

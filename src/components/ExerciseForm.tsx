@@ -1,15 +1,10 @@
 import { useState } from 'react'
 import { useData } from '../lib/hooks'
-import {
-  DEFAULT_KG_STEP,
-  GEAR_LABELS,
-  LIFT_GROUPS,
-  LIFT_GROUP_LABELS,
-  parseKg,
-} from '../lib/lift'
+import { DEFAULT_KG_STEP, GEAR_LABELS, parseKg } from '../lib/lift'
+import { LIFT_GROUPS, LIFT_GROUP_LABELS, LIFT_SUBS, SUB_LABELS } from '../lib/muscles'
 import { kgInput } from '../lib/setRows'
 import { deleteExercise, isOverriddenSeedExercise, saveExercise } from '../lib/storage'
-import type { Exercise, LiftGear, LiftGroup, LiftMode } from '../lib/types'
+import type { Exercise, LiftGear, LiftGroup, LiftMode, LiftSub } from '../lib/types'
 
 const GEARS: LiftGear[] = ['stack', 'db', 'smith', 'bar', 'body']
 
@@ -47,6 +42,7 @@ export function ExerciseForm({
   const initialGear: LiftGear = existing?.gear ?? (mode === 'calisthenic' ? 'body' : 'stack')
   const [name, setName] = useState(existing?.name ?? '')
   const [group, setGroup] = useState<LiftGroup>(existing?.group ?? defaultGroup)
+  const [subs, setSubs] = useState<LiftSub[]>(existing?.subs ?? [])
   const [gear, setGear] = useState<LiftGear>(initialGear)
   const [perSide, setPerSide] = useState(
     existing?.perSide ?? GEAR_DEFAULT_PER_SIDE[initialGear],
@@ -77,12 +73,46 @@ export function ExerciseForm({
         <label>Nhóm cơ</label>
         <div className="chips">
           {LIFT_GROUPS.map((g) => (
-            <button key={g} className="chip" aria-pressed={group === g} onClick={() => setGroup(g)}>
+            <button
+              key={g}
+              className="chip"
+              aria-pressed={group === g}
+              onClick={() => {
+                if (g !== group) setSubs([])
+                setGroup(g)
+              }}
+            >
               {LIFT_GROUP_LABELS[g]}
             </button>
           ))}
         </div>
       </div>
+
+      <div className="field">
+        <label>Phần cơ bài tác động</label>
+        <div className="chips sub-chips">
+          {LIFT_SUBS[group].map((s) => (
+            <button
+              key={s}
+              className="chip"
+              aria-pressed={subs.includes(s)}
+              onClick={() =>
+                setSubs((prev) =>
+                  prev.includes(s)
+                    ? prev.filter((x) => x !== s)
+                    : LIFT_SUBS[group].filter((x) => x === s || prev.includes(x)),
+                )
+              }
+            >
+              {SUB_LABELS[s]}
+            </button>
+          ))}
+        </div>
+      </div>
+      <p className="dim" style={{ margin: 0 }}>
+        Chọn mọi phần bài thực sự tác động — volume của bài chia đều cho các phần đã chọn.
+        Để trống nếu bài ăn đều cả nhóm.
+      </p>
 
       <div className="field">
         <label>Dụng cụ</label>
@@ -157,6 +187,8 @@ export function ExerciseForm({
             id: existing?.id,
             name: name.trim(),
             group,
+            // luôn lưu mảng, kể cả rỗng: bản ghi đè không có `subs` bị coi là bản cũ
+            subs,
             mode: existing?.mode ?? mode,
             gear,
             perSide: effectivePerSide || undefined,

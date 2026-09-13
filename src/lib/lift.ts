@@ -1,4 +1,5 @@
 import { dateKey } from './macros'
+import { LIFT_GROUPS, sessionGroups, splitBySub, type SubKey } from './muscles'
 import type {
   AppData,
   Exercise,
@@ -10,16 +11,6 @@ import type {
   PlanItem,
   WorkoutTemplate,
 } from './types'
-
-export const LIFT_GROUPS: LiftGroup[] = ['pull', 'push', 'shoulder', 'legs', 'abs']
-
-export const LIFT_GROUP_LABELS: Record<LiftGroup, string> = {
-  pull: 'Kéo',
-  push: 'Đẩy',
-  shoulder: 'Vai',
-  legs: 'Chân',
-  abs: 'Bụng',
-}
 
 export const GEAR_LABELS: Record<LiftGear, string> = {
   stack: 'Máy / cáp',
@@ -259,6 +250,8 @@ export interface WeekVolume {
   /** ngày đầu tuần (thứ 2), YYYY-MM-DD */
   start: string
   byGroup: Record<LiftGroup, number>
+  /** volume từng nhóm phụ — bài nhiều phần thì chia đều, xem `splitBySub` */
+  bySub: Partial<Record<SubKey, number>>
   total: number
   sessions: number
 }
@@ -289,8 +282,8 @@ export function weeklyVolume(
   end?: string,
   opts: { mode?: LiftMode; bodyKg?: number } = {},
 ): WeekVolume[] {
-  const zero = (): Record<LiftGroup, number> =>
-    ({ pull: 0, push: 0, shoulder: 0, legs: 0, abs: 0 })
+  const zero = () =>
+    Object.fromEntries(LIFT_GROUPS.map((g) => [g, 0])) as Record<LiftGroup, number>
 
   const last = mondayOf(end ?? dateKey())
   const [ly, lm, ld] = last.split('-').map(Number)
@@ -298,7 +291,7 @@ export function weeklyVolume(
   for (let i = weeks - 1; i >= 0; i--) {
     const d = new Date(ly, lm - 1, ld - i * 7)
     const start = fmt(d)
-    buckets.set(start, { start, byGroup: zero(), total: 0, sessions: 0 })
+    buckets.set(start, { start, byGroup: zero(), bySub: {}, total: 0, sessions: 0 })
   }
 
   for (const date of liftDates(data)) {
@@ -313,6 +306,9 @@ export function weeklyVolume(
       const v = entryVolume(ex, e, opts.bodyKg ?? 0)
       bucket.byGroup[ex.group] += v
       bucket.total += v
+      for (const [key, part] of splitBySub(ex, v)) {
+        bucket.bySub[key] = (bucket.bySub[key] ?? 0) + part
+      }
     }
   }
 
@@ -349,29 +345,98 @@ export interface PastSession {
 }
 
 /**
- * Buổi gần nhất trước `before` của đúng nhóm và chế độ đang tập. Ngày có gắn
- * nhãn nhóm thì khớp theo nhãn; ngày cũ chưa có nhãn thì khớp khi quá nửa số
- * bài thuộc nhóm đó — dữ liệu trước khi có chip nhóm vẫn gợi ý được.
+ * Các buổi gần nhất trước `before` của đúng chế độ, mới nhất trước — để chọn
+ * một buổi lặp lại. Không lọc theo nhóm: buổi nào cũng mang nhãn nhóm cơ suy từ
+ * bài đã tập, nhìn là biết.
  */
-export function lastSessionFor(
+export function recentSessions(
   data: AppData,
   mode: LiftMode,
-  group: LiftGroup,
   before: string,
   exById: Map<string, Exercise>,
-): PastSession | undefined {
+  limit = 3,
+): PastSession[] {
+  const out: PastSession[] = []
   const dates = liftDates(data).filter((d) => d < before)
-  for (let i = dates.length - 1; i >= 0; i--) {
-    const day = data.days[dates[i]]
-    const entries = (day?.lifts ?? []).filter((e) => exById.get(e.exerciseId)?.mode === mode)
-    if (entries.length === 0) continue
-    const matches = day.liftGroup
-      ? day.liftGroup === group
-      : entries.filter((e) => exById.get(e.exerciseId)?.group === group).length * 2 >
-        entries.length
-    if (matches) return { date: dates[i], entries }
+  for (let i = dates.length - 1; i >= 0 && out.length < limit; i--) {
+    const entries = (data.days[dates[i]]?.lifts ?? []).filter(
+      (e) => exById.get(e.exerciseId)?.mode === mode,
+    )
+    if (entries.length > 0) out.push({ date: dates[i], entries })
+  }
+  return out
+}
+
+export interface SessionCompare {
+  date: string
+  /** các nhóm cơ cả hai buổi cùng tập — chỉ volume của các nhóm này được đem so */
+  groups: LiftGroup[]
+  /** volume buổi đó trên các nhóm chung */
+  volume: number
+  /** volume buổi này so với buổi đó trên các nhóm chung, % — 8 nghĩa là nặng hơn 8% */
+  pct: number
+}
+
+/**
+ * So với buổi gần nhất trước `date` tập cùng nhóm cơ: hai buổi phải chung ít nhất
+ * một nửa số nhóm (Jaccard ≥ 0,5). Buổi ngực–tay sau so với buổi lưng–tay trước
+ * thì ±% chẳng nói lên gì. Chỉ so phần volume của nhóm chung: hôm nay chỉ tập
+ * ngực, buổi trước ngực + tay sau, thì đem ngực so với ngực chứ không báo tụt 70%.
+ */
+export function compareWithPrevious(
+  data: AppData,
+  mode: LiftMode,
+  date: string,
+  entries: LiftEntry[],
+  exById: Map<string, Exercise>,
+  bodyKg = 0,
+): SessionCompare | undefined {
+  const mine = sessionGroups(entries, exById)
+  if (mine.length === 0) return undefined
+  const volumeIn = (list: LiftEntry[], groups: LiftGroup[]) =>
+    summarize(
+      list.filter((e) => {
+        const g = exById.get(e.exerciseId)?.group
+        return g !== undefined && groups.includes(g)
+      }),
+      exById,
+      bodyKg,
+    ).volume
+  for (const past of recentSessions(data, mode, date, exById, Infinity)) {
+    const theirs = sessionGroups(past.entries, exById)
+    const shared = mine.filter((g) => theirs.includes(g))
+    const union = new Set([...mine, ...theirs]).size
+    if (shared.length * 2 < union) continue
+    const prev = volumeIn(past.entries, shared)
+    if (prev <= 0) continue
+    const now = volumeIn(entries, shared)
+    return { date: past.date, groups: shared, volume: prev, pct: ((now - prev) / prev) * 100 }
   }
   return undefined
+}
+
+export interface SessionPr {
+  ex: Exercise
+  best: number
+  /** kỷ lục 1RM ước tính trước buổi này */
+  prior: number
+}
+
+/** Bài nào trong buổi vượt kỷ lục 1RM ước tính trước đó. Lần đầu tập bài thì không tính. */
+export function sessionPrs(
+  data: AppData,
+  date: string,
+  entries: LiftEntry[],
+  exById: Map<string, Exercise>,
+  bodyKg = 0,
+): SessionPr[] {
+  return entries.flatMap((e) => {
+    const ex = exById.get(e.exerciseId)
+    if (!ex) return []
+    const best = bestE1rm(ex, e, bodyKg)
+    const prior = priorBestE1rm(data, ex, date, bodyKg)
+    return prior > 0 && best > prior ? [{ ex, best, prior }] : []
+  })
 }
 
 /** Kế hoạch chép nguyên set của một buổi cũ. */

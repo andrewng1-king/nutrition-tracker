@@ -25,14 +25,9 @@ import {
 } from '../lib/format'
 import { dayView } from '../lib/day'
 import { useData } from '../lib/hooks'
-import {
-  LIFT_GROUP_LABELS,
-  entryVolume,
-  shortSet,
-  summarize,
-  volumeShort,
-} from '../lib/lift'
+import { entryVolume, shortSet, summarize, volumeShort } from '../lib/lift'
 import { computeAdjust, dateKey, evaluate, macrosFor, sumEntries } from '../lib/macros'
+import { sessionLabel } from '../lib/muscles'
 import { formatDuration, formatPace, paceSecPerKm } from '../lib/run'
 import { buildNotice, type NoticeKey } from '../lib/status'
 import { allFoods, exerciseMap, foodMap, saveTemplate, setTurbo } from '../lib/storage'
@@ -62,6 +57,7 @@ export function Today({ date, setDate }: { date: string; setDate: (d: string) =>
   const turbo = runDay && Boolean(day.turbo)
   const gymLifts = lifts.filter((e) => exById.get(e.exerciseId)?.mode === 'gym')
   const calLifts = lifts.filter((e) => exById.get(e.exerciseId)?.mode === 'calisthenic')
+  const gymLabel = sessionLabel(gymLifts, exById)
   const warnings = evaluate(totals, targets)
   const week = weekSummary(data, date)
   const adjust = computeAdjust(data.settings, {
@@ -137,7 +133,7 @@ export function Today({ date, setDate }: { date: string; setDate: (d: string) =>
         <SessionCard active={liftDay}>
           <div className="between" style={{ marginBottom: 10 }}>
             <h2 className="h2">
-              Buổi tạ{day.liftGroup ? ` · ${LIFT_GROUP_LABELS[day.liftGroup]}` : ''}
+              Buổi tạ{gymLabel ? ` · ${gymLabel}` : ''}
             </h2>
             <span className="dim">{liftDay ? 'sửa ở tab Bài tập' : 'không chọn'}</span>
           </div>

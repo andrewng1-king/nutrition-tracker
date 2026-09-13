@@ -1,23 +1,16 @@
 import { useMemo, useState } from 'react'
 import { matchName, n, shortDate } from '../lib/format'
 import { useData } from '../lib/hooks'
-import {
-  GEAR_LABELS,
-  LIFT_GROUPS,
-  LIFT_GROUP_LABELS,
-  isBodyweight,
-  lastSetsFor,
-  setLabel,
-  sparkValues,
-} from '../lib/lift'
+import { GEAR_LABELS, isBodyweight, lastSetsFor, setLabel, sparkValues } from '../lib/lift'
 import { dateKey } from '../lib/macros'
+import { GROUP_COLOR, LIFT_GROUPS, LIFT_GROUP_LABELS } from '../lib/muscles'
 import { allExercises } from '../lib/storage'
-import type { Exercise, LiftGroup, LiftMode } from '../lib/types'
-import { GROUP_COLOR } from './Strength'
+import type { Exercise, LiftMode } from '../lib/types'
+import { GroupFilter, NO_FILTER, matchesFilter } from './GroupFilter'
 
 /**
  * Danh sách bài tập của một chế độ. Bấm tên để sửa tên/quy ước kg, bấm sparkline
- * bên phải để xem biểu đồ tiến bộ. Việc nhập set nằm ở LiftSheet.
+ * bên phải để xem biểu đồ tiến bộ. Việc nhập set nằm ở LiftSession.
  */
 export function ExerciseList({
   mode,
@@ -34,13 +27,13 @@ export function ExerciseList({
   const today = dateKey()
   const bodyKg = data.settings.weightKg
   const [query, setQuery] = useState('')
-  const [filter, setFilter] = useState<LiftGroup | 'all'>('all')
+  const [filter, setFilter] = useState(NO_FILTER)
 
+  const inMode = useMemo(() => allExercises(data).filter((ex) => ex.mode === mode), [data, mode])
   const list = useMemo(
     () =>
-      allExercises(data)
-        .filter((ex) => ex.mode === mode)
-        .filter((ex) => filter === 'all' || ex.group === filter)
+      inMode
+        .filter((ex) => matchesFilter(ex, filter))
         // khớp cả tên tiếng Anh lẫn ghi chú tiếng Việt, gõ không dấu vẫn ra
         .filter((ex) => matchName(ex.name, query) || matchName(ex.note ?? '', query))
         .sort(
@@ -48,7 +41,7 @@ export function ExerciseList({
             LIFT_GROUPS.indexOf(a.group) - LIFT_GROUPS.indexOf(b.group) ||
             a.name.localeCompare(b.name, 'en'),
         ),
-    [data, mode, filter, query],
+    [inMode, filter, query],
   )
 
   const sparks = useMemo(
@@ -71,15 +64,8 @@ export function ExerciseList({
         onChange={(e) => setQuery(e.target.value)}
       />
 
-      <div className="chips" style={{ marginTop: 10 }}>
-        <button className="chip" aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>
-          Tất cả
-        </button>
-        {LIFT_GROUPS.map((g) => (
-          <button key={g} className="chip" aria-pressed={filter === g} onClick={() => setFilter(g)}>
-            {LIFT_GROUP_LABELS[g]}
-          </button>
-        ))}
+      <div className="col" style={{ marginTop: 10 }}>
+        <GroupFilter exercises={inMode} value={filter} onChange={setFilter} />
       </div>
 
       {list.length === 0 ? (

@@ -1,17 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import {
   bestE1rm,
+  compareWithPrevious,
   e1rm,
   entryReps,
   entryVolume,
   exerciseHistory,
   kgLabel,
   kgStepFor,
-  lastSessionFor,
   lastSetsFor,
   planFromTemplate,
   priorBestE1rm,
+  recentSessions,
   reliableE1rm,
+  sessionPrs,
   setVolume,
   shortSet,
   stepValue,
@@ -26,7 +28,8 @@ import type { AppData, Exercise, LiftEntry } from './types'
 const dbRow: Exercise = {
   id: 'db-row',
   name: 'Dumbbell row',
-  group: 'pull',
+  group: 'back',
+  subs: ['back-lat-low', 'back-mid'],
   mode: 'gym',
   gear: 'db',
   perSide: true,
@@ -35,7 +38,7 @@ const dbRow: Exercise = {
 const pulldown: Exercise = {
   id: 'lat-pulldown',
   name: 'Lat pulldown',
-  group: 'pull',
+  group: 'back',
   mode: 'gym',
   gear: 'stack',
 }
@@ -204,9 +207,14 @@ describe('weeklyVolume', () => {
     const weeks = weeklyVolume(data, 2, map, '2026-09-07')
     expect(weeks).toHaveLength(2)
     expect(weeks[0].start).toBe('2026-08-31')
-    expect(weeks[0].byGroup.pull).toBe(440)
+    expect(weeks[0].byGroup.back).toBe(440)
+    // bài hai phần: volume chia đôi cho từng phần
+    expect(weeks[0].bySub['back-lat-low']).toBe(220)
+    expect(weeks[0].bySub['back-mid']).toBe(220)
     expect(weeks[1].start).toBe('2026-09-07')
     expect(weeks[1].byGroup.legs).toBe(360)
+    // bài không tách phần gom vào khoá "chưa tách" của nhóm
+    expect(weeks[1].bySub['legs:all']).toBe(360)
     expect(weeks[1].sessions).toBe(1)
   })
 
@@ -220,7 +228,7 @@ describe('weeklyVolume', () => {
 const pullUp: Exercise = {
   id: 'pull-up',
   name: 'Pull-Up',
-  group: 'pull',
+  group: 'back',
   mode: 'calisthenic',
   gear: 'body',
 }
@@ -322,37 +330,86 @@ describe('stepValue', () => {
   })
 })
 
-describe('lastSessionFor', () => {
+describe('recentSessions', () => {
+  const map = new Map([
+    [dbRow.id, dbRow],
+    [pulldown.id, pulldown],
+    [squat.id, squat],
+    [pullUp.id, pullUp],
+  ])
+
+  it('lists earlier sessions of the mode, newest first, up to the limit', () => {
+    const data = appData({
+      '2026-09-01': [entry('db-row', [[20, 10]])],
+      '2026-09-02': [entry('pull-up', [[0, 8]])],
+      '2026-09-03': [entry('smith-squat', [[20, 8]])],
+      '2026-09-04': [entry('lat-pulldown', [[55, 10]])],
+    })
+    const found = recentSessions(data, 'gym', '2026-09-05', map, 2)
+    expect(found.map((s) => s.date)).toEqual(['2026-09-04', '2026-09-03'])
+  })
+
+  it('ignores the day being planned and days of the other mode', () => {
+    const data = appData({
+      '2026-09-04': [entry('pull-up', [[0, 8]])],
+      '2026-09-05': [entry('db-row', [[20, 10]])],
+    })
+    expect(recentSessions(data, 'gym', '2026-09-05', map)).toEqual([])
+  })
+})
+
+describe('compareWithPrevious', () => {
   const map = new Map([
     [dbRow.id, dbRow],
     [pulldown.id, pulldown],
     [squat.id, squat],
   ])
 
-  it('finds the last session of the same labelled group', () => {
+  it('compares with the latest session that trained the same muscle groups', () => {
     const data = appData({
-      '2026-09-01': [entry('db-row', [[20, 10]]), entry('lat-pulldown', [[55, 10]])],
+      '2026-09-01': [entry('lat-pulldown', [[50, 10]])],
       '2026-09-03': [entry('smith-squat', [[20, 8]])],
     })
-    data.days['2026-09-01'].liftGroup = 'pull'
-    data.days['2026-09-03'].liftGroup = 'legs'
-    const found = lastSessionFor(data, 'gym', 'pull', '2026-09-05', map)
-    expect(found?.date).toBe('2026-09-01')
-    expect(found?.entries.map((e) => e.exerciseId)).toEqual(['db-row', 'lat-pulldown'])
+    const c = compareWithPrevious(data, 'gym', '2026-09-05', [entry('lat-pulldown', [[55, 10]])], map)
+    expect(c?.date).toBe('2026-09-01')
+    expect(c?.volume).toBe(500)
+    expect(c?.pct).toBeCloseTo(10, 5)
   })
 
-  it('falls back to the majority group on days logged before group chips existed', () => {
+  it('compares only the volume of the groups both sessions trained', () => {
+    const legPress: Exercise = { id: 'leg-press', name: 'Leg press', group: 'legs', mode: 'gym', gear: 'stack' }
+    const withLegs = new Map([...map, [legPress.id, legPress]])
     const data = appData({
-      '2026-09-02': [entry('db-row', [[20, 10]]), entry('lat-pulldown', [[55, 10]])],
+      '2026-09-01': [entry('lat-pulldown', [[50, 10]]), entry('leg-press', [[100, 10]])],
     })
-    expect(lastSessionFor(data, 'gym', 'pull', '2026-09-05', map)?.date).toBe('2026-09-02')
-    expect(lastSessionFor(data, 'gym', 'legs', '2026-09-05', map)).toBeUndefined()
+    const c = compareWithPrevious(data, 'gym', '2026-09-05', [entry('lat-pulldown', [[55, 10]])], withLegs)
+    expect(c?.groups).toEqual(['back'])
+    expect(c?.volume).toBe(500)
+    expect(c?.pct).toBeCloseTo(10, 5)
   })
 
-  it('ignores the day being planned', () => {
-    const data = appData({ '2026-09-05': [entry('db-row', [[20, 10]])] })
-    data.days['2026-09-05'].liftGroup = 'pull'
-    expect(lastSessionFor(data, 'gym', 'pull', '2026-09-05', map)).toBeUndefined()
+  it('has nothing to compare when no earlier session shares the groups', () => {
+    const data = appData({ '2026-09-03': [entry('smith-squat', [[20, 8]])] })
+    expect(
+      compareWithPrevious(data, 'gym', '2026-09-05', [entry('lat-pulldown', [[55, 10]])], map),
+    ).toBeUndefined()
+  })
+})
+
+describe('sessionPrs', () => {
+  const map = new Map([[pulldown.id, pulldown]])
+  const today = [entry('lat-pulldown', [[65, 6]])]
+
+  it('flags an exercise that beats its previous estimated 1RM', () => {
+    const data = appData({ '2026-09-01': [entry('lat-pulldown', [[60, 6]])] })
+    const prs = sessionPrs(data, '2026-09-05', today, map)
+    expect(prs).toHaveLength(1)
+    expect(prs[0].prior).toBeCloseTo(72, 5)
+    expect(prs[0].best).toBeCloseTo(78, 5)
+  })
+
+  it('does not call a first-ever session a record', () => {
+    expect(sessionPrs(appData({}), '2026-09-05', today, map)).toEqual([])
   })
 })
 
