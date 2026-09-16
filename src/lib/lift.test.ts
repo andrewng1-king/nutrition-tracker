@@ -6,6 +6,7 @@ import {
   entryReps,
   entryVolume,
   exerciseHistory,
+  isSessionLocked,
   kgLabel,
   kgStepFor,
   lastSetsFor,
@@ -23,7 +24,7 @@ import {
   weeklyVolume,
 } from './lift'
 import { DEFAULT_SETTINGS } from './macros'
-import type { AppData, Exercise, LiftEntry } from './types'
+import type { AppData, DayLog, Exercise, LiftEntry } from './types'
 
 const dbRow: Exercise = {
   id: 'db-row',
@@ -89,6 +90,56 @@ describe('volume', () => {
 
   it('sums every set of an exercise', () => {
     expect(entryVolume(dbRow, entry('db-row', [[22, 10], [20, 10]]))).toBe(840)
+  })
+
+  it('doubles reps for a one-side-at-a-time exercise, on top of per-side kg', () => {
+    const calf: Exercise = { ...squat, id: 'calf', unilateral: true }
+    // đĩa 10 kg mỗi đầu thanh = 20 kg trên một chân, 12 rep mỗi chân
+    expect(setVolume(calf, { kg: 10, reps: 12 })).toBe(480)
+    expect(setVolume(calf, { kg: 10, reps: 12, drops: [{ kg: 5, reps: 8 }] })).toBe(640)
+  })
+
+  it('keeps 1RM per side for a unilateral exercise', () => {
+    expect(e1rm({ ...dbRow, unilateral: true }, { kg: 22, reps: 10 })).toBe(e1rm(dbRow, { kg: 22, reps: 10 }))
+  })
+})
+
+describe('isSessionLocked', () => {
+  const exById = new Map([dbRow, pulldown].map((e) => [e.id, e]))
+  const pullUp: Exercise = { ...pulldown, id: 'pull-up', mode: 'calisthenic', gear: 'body' }
+  const withCali = new Map([...exById, [pullUp.id, pullUp]])
+  const day = (date: string, extra: Partial<DayLog> = {}): DayLog => ({
+    date,
+    entries: [],
+    lifts: [entry('db-row', [[22, 10]])],
+    ...extra,
+  })
+
+  it('stays open today until Hoàn thành is pressed', () => {
+    expect(isSessionLocked(day('2026-09-15'), 'gym', exById, '2026-09-15')).toBe(false)
+    expect(
+      isSessionLocked(day('2026-09-15', { liftDone: ['gym'] }), 'gym', exById, '2026-09-15'),
+    ).toBe(true)
+  })
+
+  it('treats any logged past day as finished', () => {
+    expect(isSessionLocked(day('2026-09-14'), 'gym', exById, '2026-09-15')).toBe(true)
+  })
+
+  it('never locks a mode with nothing logged', () => {
+    expect(
+      isSessionLocked(day('2026-09-15', { liftDone: ['calisthenic'] }), 'calisthenic', withCali, '2026-09-15'),
+    ).toBe(false)
+    expect(isSessionLocked(undefined, 'gym', exById, '2026-09-15')).toBe(false)
+  })
+
+  it('locks gym and calisthenic separately', () => {
+    const both = day('2026-09-15', {
+      lifts: [entry('db-row', [[22, 10]]), entry('pull-up', [[0, 8]])],
+      liftDone: ['gym'],
+    })
+    expect(isSessionLocked(both, 'gym', withCali, '2026-09-15')).toBe(true)
+    expect(isSessionLocked(both, 'calisthenic', withCali, '2026-09-15')).toBe(false)
   })
 })
 

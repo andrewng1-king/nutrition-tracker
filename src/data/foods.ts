@@ -47,6 +47,7 @@ export const SEED_FOODS: Food[] = [
   // ---- Món ăn ngoài (ước tính ±10-15%) ----
   { id: 'jollibee-combo', name: 'Combo Jollibee (mì Ý + gà + khoai chiên)', category: 'anngoai', group: 'limit', servingSize: 1, servingUnit: 'phần', kcal: 1080, protein: 32, fat: 50, carb: 110, addedSugar: 25, estimate: true },
   { id: 'com-tam-suon-opla', name: 'Cơm tấm sườn + ốp la', category: 'anngoai', group: 'limit', servingSize: 1, servingUnit: 'phần', kcal: 880, protein: 47, fat: 38, carb: 80, addedSugar: 10, estimate: true },
+  { id: 'banh-bao-circle-k', name: 'Bánh bao thịt 1/2 trứng cút (Circle K)', category: 'anngoai', group: 'moderate', servingSize: 1, servingUnit: 'cái', kcal: 350, protein: 12, fat: 12, carb: 48, addedSugar: 6, estimate: true, note: '~150g. Macro lấy giữa khoảng trên nhãn (P 11-13, F 10-12, C 45-50); đường thêm trong vỏ bánh là ước tính.' },
   { id: 'buffet-nuong', name: 'Buffet thịt nướng', category: 'anngoai', group: 'limit', servingSize: 1, servingUnit: 'phần', kcal: 2750, protein: 120, fat: 180, carb: 120, addedSugar: 25, estimate: true, note: 'Dải thực tế 2000-3500 kcal. Con số ở đây là mức giữa — chỉnh số phần nếu ăn ít/nhiều hơn.' },
 
   // ---- Đường thêm vào (để log riêng, spec mục 2) ----

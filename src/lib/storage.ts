@@ -10,6 +10,7 @@ import type {
   DayType,
   Food,
   LiftEntry,
+  LiftMode,
   LiftSet,
   MealSlot,
   PlanItem,
@@ -350,9 +351,10 @@ export function toggleDayType(date: string, type: DayType, current: DayType[]) {
 
 /**
  * Xoá buổi tập của một chế độ: chỉ các bài thuộc `exerciseIds`, để xoá buổi gym
- * không cuốn luôn buổi calisthenic cùng ngày.
+ * không cuốn luôn buổi calisthenic cùng ngày. Bỏ luôn dấu đã chốt của chế độ đó —
+ * không thì buổi tập lại từ đầu trong ngày sẽ khoá ngay từ set đầu tiên.
  */
-export function clearWorkout(date: string, exerciseIds: string[]) {
+export function clearWorkout(date: string, exerciseIds: string[], mode?: LiftMode) {
   const drop = new Set(exerciseIds)
   update((d) =>
     withDay(d, date, (day) => {
@@ -362,6 +364,26 @@ export function clearWorkout(date: string, exerciseIds: string[]) {
         ...day,
         lifts: lifts.length > 0 ? lifts : undefined,
         plan: plan.length > 0 ? plan : undefined,
+        liftDone: mode ? withoutMode(day.liftDone, mode) : day.liftDone,
+      }
+    }),
+  )
+}
+
+const withoutMode = (modes: LiftMode[] | undefined, mode: LiftMode) => {
+  const rest = (modes ?? []).filter((m) => m !== mode)
+  return rest.length > 0 ? rest : undefined
+}
+
+/** Chốt buổi tập của một chế độ (bấm Hoàn thành) hoặc mở lại để sửa. */
+export function setLiftDone(date: string, mode: LiftMode, done: boolean) {
+  update((d) =>
+    withDay(d, date, (day) => {
+      const has = (day.liftDone ?? []).includes(mode)
+      if (has === done) return day
+      return {
+        ...day,
+        liftDone: done ? [...(day.liftDone ?? []), mode] : withoutMode(day.liftDone, mode),
       }
     }),
   )

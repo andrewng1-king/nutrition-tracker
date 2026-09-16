@@ -47,11 +47,14 @@ export function ExerciseForm({
   const [perSide, setPerSide] = useState(
     existing?.perSide ?? GEAR_DEFAULT_PER_SIDE[initialGear],
   )
+  const [unilateral, setUnilateral] = useState(existing?.unilateral ?? false)
   const [kgStep, setKgStep] = useState(kgInput(existing?.kgStep ?? DEFAULT_KG_STEP))
   const step = parseKg(kgStep)
 
   const canReset = existing ? isOverriddenSeedExercise(existing.id, data) : false
   const effectivePerSide = perSide && allowPerSide(gear)
+  // Ví dụ volume theo đúng hai cờ đang chọn — bật cả hai thì thấy ngay là nhân 4.
+  const sampleVolume = 20 * (effectivePerSide ? 2 : 1) * 10 * (unilateral ? 2 : 1)
 
   return (
     <>
@@ -156,6 +159,21 @@ export function ExerciseForm({
         </p>
       )}
 
+      <button
+        className="chip"
+        aria-pressed={unilateral}
+        style={{ alignSelf: 'flex-start' }}
+        onClick={() => setUnilateral((v) => !v)}
+      >
+        Tập từng bên (lần lượt từng tay / chân)
+      </button>
+      <p className="dim" style={{ margin: 0 }}>
+        {unilateral
+          ? 'Rep ghi là của một bên — lấy bên yếu hơn, bên mạnh dừng ở đúng số đó. Volume tính cả hai bên.'
+          : 'Hai bên làm cùng lúc, hoặc bài không chia bên.'}
+        {allowPerSide(gear) && ` Ví dụ nhập 20 kg × 10 rep → volume ${sampleVolume} kg.`}
+      </p>
+
       <div className="field">
         <label htmlFor="ex-step">Mỗi lần bấm − / + đổi bao nhiêu kg</label>
         <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
@@ -192,6 +210,7 @@ export function ExerciseForm({
             mode: existing?.mode ?? mode,
             gear,
             perSide: effectivePerSide || undefined,
+            unilateral: unilateral || undefined,
             note: existing?.note,
             kgStep: step !== DEFAULT_KG_STEP ? step : undefined,
           })

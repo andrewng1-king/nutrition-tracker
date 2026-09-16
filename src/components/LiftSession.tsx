@@ -31,6 +31,7 @@ import {
   initialRows,
   isValidSet,
   kgInput,
+  moveRow,
   pendingIndexes,
   rowToSet,
 } from '../lib/setRows'
@@ -48,10 +49,12 @@ import type { AppData, Exercise, LiftEntry, LiftMode, LiftSet, PlanItem } from '
 import { ExerciseForm } from './ExerciseForm'
 import { FinishSession } from './FinishSession'
 import { GroupFilter, NO_FILTER, matchesFilter } from './GroupFilter'
-import { IconCheck } from './icons'
+import { IconArrowDown, IconCheck, IconTrash, IconX } from './icons'
 import { Page } from './Page'
 import { Stat } from './Stat'
 import { Stepper } from './Stepper'
+import { useSetDrag } from './useSetDrag'
+import { useSetSwipe } from './useSetSwipe'
 
 type View =
   | { kind: 'session' }
@@ -182,7 +185,13 @@ export function LiftSession({
       onBack={onClose}
       footer={
         canFinish && (
-          <button className="btn primary full" onClick={() => setFinishing(true)}>
+          // Popup hoàn thành đang mở thì nút này tắt hẳn: nền đã mờ mà nút lime vẫn
+          // sáng trông như còn bấm được.
+          <button
+            className="btn primary full"
+            disabled={finishing}
+            onClick={() => setFinishing(true)}
+          >
             Hoàn thành buổi tập
           </button>
         )
@@ -285,7 +294,7 @@ export function LiftSession({
           className="btn danger full"
           onClick={() => {
             const ids = [...lifts.map((e) => e.exerciseId), ...plan.map((p) => p.exerciseId)]
-            clearWorkout(date, ids)
+            clearWorkout(date, ids, mode)
             clearDrafts(date, ids)
             onClose()
           }}
@@ -608,7 +617,6 @@ function SetEditor({
   )
 
   // Có nháp thì mở lại đúng những gì đang gõ dở; không thì dựng từ log / kế hoạch / lần trước.
-  const [restored] = useState(() => Boolean(getDraft(date, ex.id)))
   const [rows, setRows] = useState<DraftRow[]>(
     () =>
       getDraft(date, ex.id)?.rows ??
@@ -619,6 +627,26 @@ function SetEditor({
   const [tools, setTools] = useState<number | null>(null)
   const [ask, setAsk] = useState(false)
   const [hint, setHint] = useState<string | null>(null)
+  const swipe = useSetSwipe({ onClaim: () => setTools(null) })
+  const sort = useSetDrag({
+    onLift: () => {
+      setTools(null)
+      swipe.close()
+    },
+    onMove: (from, to) => change((prev) => moveRow(prev, from, to)),
+  })
+  const dragStyle = (i: number) => {
+    const offset = sort.offsetOf(i)
+    return offset === undefined ? undefined : { transform: `translateY(${offset}px)` }
+  }
+  const slideStyle = (i: number) => {
+    const offset = swipe.offsetOf(i)
+    if (offset === undefined) return undefined
+    return {
+      transform: `translateX(${offset}px)`,
+      transition: swipe.isLive(i) ? 'none' : undefined,
+    }
+  }
 
   /**
    * Mọi thay đổi đi qua đây. Dòng đã tick là dữ liệu thật — sửa số hay bỏ tick
@@ -631,6 +659,7 @@ function SetEditor({
     rowsRef.current = next
     touched.current = true
     setHint(null)
+    swipe.close()
     setRows(next)
     const after = doneSets(next, body)
     if (JSON.stringify(after) !== JSON.stringify(doneSets(prev, body))) {
@@ -707,124 +736,121 @@ function SetEditor({
   return (
     <>
       <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
-        {ex.perSide && <span className="badge run">số ghi là mỗi bên</span>}
         <button className="btn sm" style={{ marginLeft: 'auto' }} onClick={onEditExercise}>
           Sửa bài
         </button>
       </div>
 
-      {ex.note && (
-        <p className="dim" style={{ margin: 0 }}>
-          {ex.note}
-        </p>
-      )}
-
-      {restored && (
-        <p className="muted" style={{ margin: 0, color: 'var(--fat)' }}>
-          Mở lại bản nháp chưa lưu.
-        </p>
-      )}
-
-      <p className="muted" style={{ margin: 0 }}>
-        {last
-          ? `Lần trước (${shortDate(last.date)}): ${last.sets.map((s) => shortSet(s)).join(', ')}`
-          : 'Chưa có dữ liệu lần trước — buổi này sẽ là mốc gốc.'}
-        {record > 0 && ` · kỷ lục 1RM ước tính ${n(record, 1)} kg`}
-      </p>
-
-      <div className="set-list">
+      <div className="set-list" data-dragging={sort.drag ? true : undefined}>
         <div className="set-row">
           <span />
           <span className="set-head">
             {body ? 'Tải thêm (kg)' : `Mức tạ (${ex.perSide ? 'mỗi bên' : 'kg'})`}
           </span>
-          <span className="set-head">Rep</span>
-          <span className="set-head" style={{ textAlign: 'center' }}>
-            Xong
-          </span>
+          <span className="set-head">{ex.unilateral ? 'Rep / bên' : 'Rep'}</span>
+          <span className="set-head">Xong</span>
         </div>
 
         {rows.map((r, i) => (
-          <div key={i} className="set-block" data-done={r.done || undefined}>
-            <div className="set-row">
-              <button
-                className="set-index num"
-                aria-expanded={tools === i}
-                aria-label={`Set ${i + 1}: thêm nấc drop hoặc xoá set`}
-                onClick={() => setTools(tools === i ? null : i)}
-              >
-                {i + 1}
-              </button>
-              <Stepper
-                value={r.kg}
-                step={step}
-                label={`mức tạ set ${i + 1}`}
-                onChange={(v) => editField(i, 'kg', v)}
-              />
-              <Stepper
-                value={r.reps}
-                step={1}
-                integer
-                label={`rep set ${i + 1}`}
-                onChange={(v) => editField(i, 'reps', v)}
-              />
-              <button
-                className="set-tick"
-                aria-pressed={r.done}
-                aria-label={r.done ? `Bỏ tick set ${i + 1}` : `Tick set ${i + 1} là đã xong`}
-                onClick={() => toggleDone(i)}
-              >
-                <IconCheck className="ico" />
-              </button>
-            </div>
-
-            {r.drops.map((d, j) => (
-              <div key={j} className="set-row drop">
-                <span className="drop-mark" aria-hidden="true">
-                  ↘
-                </span>
-                <Stepper
-                  value={d.kg}
-                  step={step}
-                  label={`mức tạ nấc drop ${j + 1} của set ${i + 1}`}
-                  onChange={(v) => patchDrop(i, j, { kg: v })}
-                />
-                <Stepper
-                  value={d.reps}
-                  step={1}
-                  integer
-                  label={`rep nấc drop ${j + 1} của set ${i + 1}`}
-                  onChange={(v) => patchDrop(i, j, { reps: v })}
-                />
+          <div
+            key={i}
+            ref={sort.blockRef(i)}
+            className="set-block"
+            data-done={r.done || undefined}
+            data-lifted={sort.drag?.from === i || undefined}
+            style={dragStyle(i)}
+          >
+            <div
+              className="set-swipe"
+              data-active={swipe.offsetOf(i) !== undefined || undefined}
+              data-open={swipe.isOpen(i) || undefined}
+            >
+              {swipe.offsetOf(i) !== undefined && (
                 <button
-                  className="set-del"
-                  aria-label={`Xoá nấc drop ${j + 1} của set ${i + 1}`}
-                  onClick={() =>
-                    change((prev) =>
-                      prev.map((row, k) =>
-                        k === i ? { ...row, drops: row.drops.filter((_, m) => m !== j) } : row,
-                      ),
-                    )
-                  }
+                  className="set-trash"
+                  aria-label={`Xoá set ${i + 1}`}
+                  onClick={() => change((prev) => prev.filter((_, k) => k !== i))}
                 >
-                  ×
+                  <IconTrash className="ico" />
                 </button>
+              )}
+              <div className="set-slide" style={slideStyle(i)} {...swipe.slideProps(i)}>
+                <div className="set-row">
+                  <button
+                    className="set-index num"
+                    aria-expanded={tools === i}
+                    aria-label={`Set ${i + 1}: chạm để thêm nấc drop, giữ rồi kéo để đổi thứ tự, lướt trái để xoá`}
+                    {...sort.indexProps(i)}
+                    onClick={() => {
+                      if (sort.takeClick()) setTools(tools === i ? null : i)
+                    }}
+                  >
+                    {i + 1}
+                  </button>
+                  <Stepper
+                    value={r.kg}
+                    step={step}
+                    label={`mức tạ set ${i + 1}`}
+                    onChange={(v) => editField(i, 'kg', v)}
+                  />
+                  <Stepper
+                    value={r.reps}
+                    step={1}
+                    integer
+                    label={`rep set ${i + 1}`}
+                    onChange={(v) => editField(i, 'reps', v)}
+                  />
+                  <button
+                    className="set-tick"
+                    aria-pressed={r.done}
+                    aria-label={r.done ? `Bỏ tick set ${i + 1}` : `Tick set ${i + 1} là đã xong`}
+                    onClick={() => toggleDone(i)}
+                  >
+                    <IconCheck className="ico" />
+                  </button>
+                </div>
+
+                {r.drops.map((d, j) => (
+                  <div key={j} className="set-row drop">
+                    <span className="drop-mark" aria-hidden="true">
+                      <IconArrowDown className="ico" />
+                    </span>
+                    <Stepper
+                      value={d.kg}
+                      step={step}
+                      label={`mức tạ nấc drop ${j + 1} của set ${i + 1}`}
+                      onChange={(v) => patchDrop(i, j, { kg: v })}
+                    />
+                    <Stepper
+                      value={d.reps}
+                      step={1}
+                      integer
+                      label={`rep nấc drop ${j + 1} của set ${i + 1}`}
+                      onChange={(v) => patchDrop(i, j, { reps: v })}
+                    />
+                    <button
+                      className="set-del"
+                      aria-label={`Xoá nấc drop ${j + 1} của set ${i + 1}`}
+                      onClick={() =>
+                        change((prev) =>
+                          prev.map((row, k) =>
+                            k === i ? { ...row, drops: row.drops.filter((_, m) => m !== j) } : row,
+                          ),
+                        )
+                      }
+                    >
+                      <IconX className="ico" />
+                    </button>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
 
             {tools === i && (
               <div className="set-tools">
                 <button className="btn sm" onClick={() => addDrop(i)}>
-                  ↘ Thêm nấc drop
-                </button>
-                <button
-                  className="btn sm danger"
-                  onClick={() => {
-                    change((prev) => prev.filter((_, k) => k !== i))
-                    setTools(null)
-                  }}
-                >
-                  Xoá set
+                  <IconArrowDown className="ico drop-ico" />
+                  Thêm nấc drop
                 </button>
               </div>
             )}
@@ -837,11 +863,6 @@ function SetEditor({
           {hint}
         </p>
       )}
-
-      <p className="dim" style={{ margin: 0 }}>
-        Tập xong set nào tick set đó — set đã tick vào log ngay. Sửa số một set thì các set
-        bên dưới chưa tick tự chép theo. Bấm số thứ tự để thêm nấc dropset hoặc xoá set.
-      </p>
 
       <button
         className="btn full"

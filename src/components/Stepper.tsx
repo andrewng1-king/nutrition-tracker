@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { parseKg, stepValue } from '../lib/lift'
 import { kgInput } from '../lib/setRows'
+import { IconMinus, IconPlus } from './icons'
 
 const HOLD_DELAY = 380
 const HOLD_EVERY = 85
@@ -71,7 +72,7 @@ export function Stepper({
         aria-label={`Giảm ${label}`}
         {...holdProps(-1)}
       >
-        −
+        <IconMinus className="ico" />
       </button>
       <input
         inputMode={integer ? 'numeric' : 'decimal'}
@@ -86,7 +87,7 @@ export function Stepper({
         aria-label={`Tăng ${label}`}
         {...holdProps(1)}
       >
-        +
+        <IconPlus className="ico" />
       </button>
     </div>
   )

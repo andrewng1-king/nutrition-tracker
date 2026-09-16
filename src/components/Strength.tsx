@@ -29,7 +29,7 @@ export function Strength({ mode }: { mode: LiftMode }) {
       <section className="card">
         <h2 className="h2">Tiến bộ</h2>
         <p className="empty" style={{ padding: '16px 0 2px' }}>
-          Chưa có buổi nào được log. Bấm <b>Log buổi hôm nay</b> ở trên để bắt đầu.
+          Chưa có buổi nào được log. Bấm <b>Bắt đầu buổi tập hôm nay</b> ở trên để bắt đầu.
         </p>
       </section>
     )

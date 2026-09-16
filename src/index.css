@@ -1335,15 +1335,20 @@ input[type='number']::-webkit-inner-spin-button {
   gap: 6px;
 }
 
+/* Tiêu đề căn giữa trên ô số — căn trái thì chữ bắt đầu từ nút −, lệch hẳn khỏi con số */
 .set-head {
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--dim);
+  text-align: center;
+  /* không cắt overflow: dấu ngã chồng trên chữ hoa (MỖI) nhô khỏi hộp dòng */
+  line-height: 1.4;
 }
 
-/* Số thứ tự là nút mở công cụ của set (thêm nấc drop, xoá) — viền nét đứt gợi ý bấm được */
+/* Số thứ tự: chạm = mở công cụ của set (thêm nấc drop, xoá), giữ rồi kéo = đổi
+   thứ tự. `touch-action: none` để lúc kéo trang không cuộn theo ngón tay. */
 .set-index {
   height: 42px;
   border-radius: 10px;
@@ -1352,12 +1357,42 @@ input[type='number']::-webkit-inner-spin-button {
   font-weight: 600;
   color: var(--dim);
   text-align: center;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .set-index[aria-expanded='true'] {
   border-style: solid;
   background: var(--surface-2);
   color: var(--text);
+}
+
+/* Kéo thả set: dòng đang kéo nổi lên theo ngón tay, các dòng khác trượt nhường chỗ */
+.set-list[data-dragging] .set-block {
+  transition: transform 0.16s ease;
+}
+
+.set-list[data-dragging] .set-block[data-lifted] {
+  position: relative;
+  z-index: 2;
+  transition: none;
+  border-radius: 12px;
+  background: var(--surface-2);
+  box-shadow: var(--shadow);
+}
+
+.set-block[data-lifted] .set-index {
+  border-style: solid;
+  border-color: var(--lime);
+  color: var(--lime);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .set-list[data-dragging] .set-block {
+    transition: none;
+  }
 }
 
 .set-tick {
@@ -1385,16 +1420,121 @@ input[type='number']::-webkit-inner-spin-button {
 }
 
 /* Set đã tick: số chuyển lime — liếc qua là biết còn mấy set chưa làm */
-.set-block[data-done] > .set-row .stepper input {
+.set-block[data-done] .set-row:not(.drop) .stepper input {
   color: var(--lime);
   border-color: color-mix(in srgb, var(--lime) 30%, var(--line));
 }
 
+/* Lướt trái để xoá: dòng trượt trên ô thùng rác đỏ nằm sẵn bên dưới. Chỉ cắt
+   tràn và tô nền lúc đang lướt / đang mở — lúc thường mà cắt thì viền focus lime
+   của ô số ở mép bị xén. */
+.set-swipe {
+  position: relative;
+}
+
+.set-swipe[data-active] {
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+.set-slide {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: relative;
+  touch-action: pan-y;
+  transition: transform 0.18s ease;
+}
+
+.set-swipe[data-active] .set-slide {
+  background: var(--bg);
+}
+
+/* Dòng đang mở: chạm đâu trên dòng cũng chỉ là đóng lại, không bấm trúng − / + hay tick */
+.set-swipe[data-open] .set-slide > * {
+  pointer-events: none;
+}
+
+.set-trash {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 72px;
+  border-radius: 12px;
+  background: var(--warn);
+  color: #2a0507;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.set-trash .ico {
+  width: 22px;
+  height: 22px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .set-slide {
+    transition: none;
+  }
+}
+
+/* Nấc drop là phụ của set bên trên: thấp hơn, nền trong suốt viền đứt, số nhạt
+   hơn. Mũi tên vàng nối thẳng từ ô số thứ tự xuống, nhìn là biết drop của set nào. */
+.set-row.drop {
+  margin-top: -2px;
+}
+
+.set-row.drop .stepper-btn {
+  height: 32px;
+  background: transparent;
+  border-color: transparent;
+  color: var(--dim);
+}
+
+.set-row.drop .stepper input {
+  height: 32px;
+  background: transparent;
+  border: 1px dashed color-mix(in srgb, var(--muted) 28%, var(--line));
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.set-block[data-done] .set-row.drop .stepper input {
+  color: color-mix(in srgb, var(--lime) 70%, var(--dim));
+}
+
 .drop-mark {
-  text-align: center;
+  position: relative;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--fat);
-  font-size: 17px;
-  font-weight: 700;
+}
+
+/* đoạn nối từ đáy ô phía trên (qua khe 4px) vào thân mũi tên */
+.drop-mark::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -4px;
+  height: 16px;
+  border-left: 2px solid color-mix(in srgb, var(--fat) 45%, transparent);
+  transform: translateX(-1px);
+}
+
+.drop-mark .ico {
+  position: relative;
+  width: 16px;
+  height: 16px;
+}
+
+.btn .drop-ico {
+  width: 15px;
+  height: 15px;
+  color: var(--fat);
 }
 
 .set-tools {
@@ -1411,30 +1551,39 @@ input[type='number']::-webkit-inner-spin-button {
   min-width: 0;
 }
 
+/* Cả cụm cao đúng 42px như ô số thứ tự và nút tick — padding dọc của input từng
+   đẩy ô số lên 43px, lệch một pixel so với hai cột bên cạnh. */
 .stepper input {
   flex: 1;
   min-width: 0;
+  height: 42px;
   text-align: center;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  padding: 9px 2px;
+  padding: 0 2px;
   border-radius: 10px;
 }
 
 .stepper-btn {
   width: 32px;
   flex: none;
-  min-height: 42px;
+  height: 42px;
   border-radius: 10px;
   background: var(--surface-2);
   border: 1px solid var(--line);
-  font-size: 19px;
-  line-height: 1;
   color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   touch-action: manipulation;
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
+}
+
+.stepper-btn .ico {
+  width: 15px;
+  height: 15px;
 }
 
 .stepper-btn:active {
@@ -1608,18 +1757,52 @@ input[type='number']::-webkit-inner-spin-button {
   flex: none;
 }
 
-.set-del {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
+/* Buổi hôm nay đã chốt: không còn là việc phải làm nên bỏ nền lime, chỉ giữ dấu
+   tick lime báo đã xong. */
+.done-cta .ico {
+  color: var(--lime);
+}
+
+/* Thẻ một dòng mở sang trang riêng — danh sách bài dài, không bày sẵn ra tab */
+.list-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  color: inherit;
+}
+
+.list-link:active {
   background: var(--surface-2);
-  border: 1px solid var(--line);
-  font-size: 19px;
-  line-height: 1;
-  color: var(--muted);
+}
+
+.list-link .ico {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  color: var(--dim);
+  transform: rotate(-90deg);
+}
+
+/* Xoá nấc drop: đỏ nhạt, thấp bằng dòng drop. Rộng theo cột chứ không cố định
+   42px — màn ≤360px cột tick chỉ còn 38px. */
+.set-del {
+  width: 100%;
+  height: 32px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent);
+  color: var(--warn);
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.set-del .ico {
+  width: 15px;
+  height: 15px;
 }
 
 /* Cột volume theo tuần: nhiều tuần trên màn hẹp nên cho cuộn ngang thay vì bóp nát */
@@ -1954,9 +2137,14 @@ input[type='number']::-webkit-inner-spin-button {
   padding: var(--pad);
 }
 
+/* Tổng kết buổi dài hơn màn nhỏ thì popup tự cuộn, và cuộn tới đáy không kéo
+   theo trang phía sau (overscroll-behavior). */
 .popup {
   width: 100%;
   max-width: 340px;
+  max-height: calc(100dvh - 2 * var(--pad));
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--r);
@@ -1967,6 +2155,10 @@ input[type='number']::-webkit-inner-spin-button {
   gap: 10px;
   box-shadow: var(--shadow);
   animation: popup-in 0.2s cubic-bezier(0.2, 1.2, 0.35, 1);
+}
+
+.popup > * {
+  flex-shrink: 0;
 }
 
 .popup .grid2 {
@@ -2028,6 +2220,7 @@ input[type='number']::-webkit-inner-spin-button {
 
 .sheet-body {
   overflow-y: auto;
+  overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   padding: 14px var(--pad) 20px;
   display: flex;
@@ -2111,6 +2304,7 @@ input[type='number']::-webkit-inner-spin-button {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   padding: 14px var(--pad) 24px;
   display: flex;

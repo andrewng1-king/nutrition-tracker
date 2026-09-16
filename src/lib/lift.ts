@@ -2,6 +2,7 @@ import { dateKey } from './macros'
 import { LIFT_GROUPS, sessionGroups, splitBySub, type SubKey } from './muscles'
 import type {
   AppData,
+  DayLog,
   Exercise,
   LiftEntry,
   LiftGear,
@@ -55,10 +56,22 @@ export function effectiveKg(ex: Exercise, kg: number, bodyKg = 0): number {
   return kg * sideFactor(ex)
 }
 
+/**
+ * Bài tập lần lượt từng tay/chân: rep ghi là của MỘT bên (bên yếu hơn), bên kia
+ * làm bằng số đó — volume nhân đôi. Không đụng 1RM: sức nâng vẫn là của một bên.
+ */
+export function repFactor(ex: Exercise): number {
+  return ex.unilateral ? 2 : 1
+}
+
 /** Volume một set, cộng cả các nấc dropset. */
 export function setVolume(ex: Exercise, s: LiftSet, bodyKg = 0): number {
   const main = effectiveKg(ex, s.kg, bodyKg) * s.reps
-  return (s.drops ?? []).reduce((sum, d) => sum + effectiveKg(ex, d.kg, bodyKg) * d.reps, main)
+  const total = (s.drops ?? []).reduce(
+    (sum, d) => sum + effectiveKg(ex, d.kg, bodyKg) * d.reps,
+    main,
+  )
+  return total * repFactor(ex)
 }
 
 export function entryVolume(ex: Exercise, e: LiftEntry, bodyKg = 0): number {
@@ -178,6 +191,24 @@ export function liftDates(
       return lifts.some((e) => exById.get(e.exerciseId)?.mode === mode)
     })
     .sort()
+}
+
+/**
+ * Buổi của một chế độ đã chốt chưa: có set trong log, và hoặc đã bấm Hoàn thành,
+ * hoặc là ngày đã qua. Buổi chốt rồi bấm vào chỉ xem tổng kết; muốn sửa phải mở
+ * lại có xác nhận. Ngày đã qua không cần cờ — buổi hôm qua quên bấm Hoàn thành
+ * thì hôm nay cũng đã xong.
+ */
+export function isSessionLocked(
+  day: DayLog | undefined,
+  mode: LiftMode,
+  exById: Map<string, Exercise>,
+  today = dateKey(),
+): boolean {
+  if (!day) return false
+  const logged = (day.lifts ?? []).some((e) => exById.get(e.exerciseId)?.mode === mode)
+  if (!logged) return false
+  return day.date < today || (day.liftDone ?? []).includes(mode)
 }
 
 export interface LiftPoint {

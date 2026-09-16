@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useOverlay } from '../lib/hooks'
 
 interface Props {
@@ -14,10 +15,11 @@ interface Props {
   size?: 'auto' | 'full'
 }
 
+/** Gắn vào `body` như `Popup` — vuốt trên nền mờ không được cuộn trang phía sau. */
 export function Sheet({ title, onClose, children, action, size = 'auto' }: Props) {
   useOverlay(onClose)
 
-  return (
+  return createPortal(
     <div
       className="backdrop"
       onClick={(e) => {
@@ -41,6 +43,7 @@ export function Sheet({ title, onClose, children, action, size = 'auto' }: Props
         </div>
         <div className="sheet-body">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

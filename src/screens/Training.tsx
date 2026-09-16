@@ -1,19 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ExerciseForm } from '../components/ExerciseForm'
 import { ExerciseList } from '../components/ExerciseList'
+import { IconCheck, IconChevron } from '../components/icons'
 import { LiftSession } from '../components/LiftSession'
+import { Page } from '../components/Page'
 import { ProgressSheet } from '../components/ProgressSheet'
 import { RunProgress } from '../components/RunProgress'
+import { SessionReview } from '../components/SessionReview'
 import { Sheet } from '../components/Sheet'
 import { Strength } from '../components/Strength'
 import { SubTabs } from '../components/SubTabs'
 import type { LiftDraft } from '../lib/draft'
 import { dayLabel, n } from '../lib/format'
 import { useData } from '../lib/hooks'
-import { liftDates, summarize, volumeShort } from '../lib/lift'
+import { isSessionLocked, liftDates, summarize, volumeShort } from '../lib/lift'
 import { dateKey } from '../lib/macros'
 import { sessionLabel } from '../lib/muscles'
-import { exerciseMap, getDay } from '../lib/storage'
+import { allExercises, exerciseMap, getDay, setLiftDone } from '../lib/storage'
 import type { Exercise, LiftMode } from '../lib/types'
 
 type Sub = LiftMode | 'run'
@@ -73,9 +76,21 @@ function LiftModeView({
   const exById = useMemo(() => exerciseMap(data), [data])
 
   const [session, setSession] = useState<{ date: string; exerciseId?: string } | null>(null)
+  const [review, setReview] = useState<string | null>(null)
+  const [browsing, setBrowsing] = useState(false)
   const [editing, setEditing] = useState<Exercise | null>(null)
   const [creating, setCreating] = useState(false)
   const [progress, setProgress] = useState<Exercise | null>(null)
+  const exerciseCount = useMemo(
+    () => allExercises(data).filter((ex) => ex.mode === mode).length,
+    [data, mode],
+  )
+
+  // Buổi đã chốt thì bấm vào chỉ xem tổng kết; buổi còn mở thì vào thẳng trang sửa.
+  const openDate = (date: string) => {
+    if (isSessionLocked(data.days[date], mode, exById, today)) setReview(date)
+    else setSession({ date })
+  }
 
   // Nhận bản nháp một lần rồi báo lại cho App — mở thẳng bảng nhập set đang dở.
   useEffect(() => {
@@ -91,6 +106,7 @@ function LiftModeView({
   const todaysPlan = (day.plan ?? []).filter((p) => exById.get(p.exerciseId)?.mode === mode)
   const summary = summarize(todaysLifts, exById, data.settings.weightKg)
   const label = sessionLabel(todaysLifts.length > 0 ? todaysLifts : todaysPlan, exById)
+  const locked = isSessionLocked(day, mode, exById, today)
 
   return (
     <>
@@ -120,25 +136,56 @@ function LiftModeView({
           </div>
         )}
 
-        <button className="btn primary full" onClick={() => setSession({ date: today })}>
-          {todaysLifts.length > 0
-            ? 'Sửa buổi hôm nay'
-            : todaysPlan.length > 0
+        {locked ? (
+          <button className="btn full done-cta" onClick={() => setReview(today)}>
+            <IconCheck className="ico" />
+            Đã hoàn thành · Xem tổng kết
+          </button>
+        ) : (
+          <button className="btn primary full" onClick={() => setSession({ date: today })}>
+            {todaysLifts.length > 0 || todaysPlan.length > 0
               ? 'Tiếp tục buổi hôm nay'
-              : 'Log buổi hôm nay'}
-        </button>
+              : 'Bắt đầu buổi tập hôm nay'}
+          </button>
+        )}
       </section>
 
       <Strength mode={mode} />
 
-      <SessionHistory mode={mode} onOpen={(date) => setSession({ date })} />
+      <SessionHistory mode={mode} onOpen={openDate} />
 
-      <ExerciseList
-        mode={mode}
-        onOpen={setEditing}
-        onCreate={() => setCreating(true)}
-        onProgress={setProgress}
-      />
+      <button className="card list-link" onClick={() => setBrowsing(true)}>
+        <span className="h2">Danh sách bài · {exerciseCount}</span>
+        <IconChevron className="ico" />
+      </button>
+
+      {browsing && (
+        <Page
+          title="Danh sách bài"
+          onBack={() => setBrowsing(false)}
+          action={
+            <button className="btn sm" onClick={() => setCreating(true)}>
+              + Bài mới
+            </button>
+          }
+        >
+          <ExerciseList mode={mode} onOpen={setEditing} onProgress={setProgress} />
+        </Page>
+      )}
+
+      {review && (
+        <SessionReview
+          date={review}
+          mode={mode}
+          onClose={() => setReview(null)}
+          onEdit={() => {
+            // Hôm nay: bỏ dấu chốt, sửa xong bấm Hoàn thành lại. Ngày đã qua tự chốt lại.
+            setLiftDone(review, mode, false)
+            setSession({ date: review })
+            setReview(null)
+          }}
+        />
+      )}
 
       {session && (
         <LiftSession
@@ -182,7 +229,7 @@ function LiftModeView({
 
 const PAGE = 6
 
-/** Các buổi đã tập, mới nhất trước. Bấm vào để mở và sửa set của đúng ngày đó. */
+/** Các buổi đã tập, mới nhất trước. Bấm vào để xem tổng kết (buổi đã chốt) hoặc mở sửa tiếp. */
 function SessionHistory({ mode, onOpen }: { mode: LiftMode; onOpen: (date: string) => void }) {
   const data = useData()
   const exById = useMemo(() => exerciseMap(data), [data])

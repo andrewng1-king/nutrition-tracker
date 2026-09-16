@@ -4,6 +4,7 @@ import {
   doneSets,
   editRowField,
   initialRows,
+  moveRow,
   pendingIndexes,
   rowFromSet,
   rowToSet,
@@ -88,6 +89,28 @@ describe('editRowField — tự chép xuống', () => {
     rows = editRowField(rows, 0, 'kg', '45')
     rows = editRowField(rows, 0, 'reps', '12')
     expect(rows[1]).toMatchObject({ kg: '45', reps: '8' })
+  })
+})
+
+describe('moveRow — kéo đổi chỗ set', () => {
+  const rows = [row('20', '10', true), row('22,5', '8'), row('25', '6')]
+
+  it('moves a set down and closes the gap', () => {
+    expect(moveRow(rows, 0, 2).map((r) => r.kg)).toEqual(['22,5', '25', '20'])
+  })
+
+  it('moves a set up', () => {
+    expect(moveRow(rows, 2, 0).map((r) => r.kg)).toEqual(['25', '20', '22,5'])
+  })
+
+  it('carries the tick with the row', () => {
+    expect(moveRow(rows, 0, 1).map((r) => r.done)).toEqual([false, true, false])
+  })
+
+  it('returns the same array for a no-op or out-of-range move', () => {
+    expect(moveRow(rows, 1, 1)).toBe(rows)
+    expect(moveRow(rows, 0, 3)).toBe(rows)
+    expect(moveRow(rows, -1, 0)).toBe(rows)
   })
 })
 

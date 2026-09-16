@@ -182,6 +182,54 @@ export function IconCheck({ className }: Props) {
   )
 }
 
+/**
+ * Dấu − / + của ô số. Vẽ bằng nét thay vì gõ ký tự: dấu trừ của mỗi font nằm một
+ * độ cao khác nhau, nên ký tự không bao giờ đứng đúng tâm nút trên mọi máy.
+ */
+export function IconMinus({ className }: Props) {
+  return (
+    <svg {...base} className={className} strokeWidth={2.2}>
+      <path d="M6 12h12" />
+    </svg>
+  )
+}
+
+export function IconPlus({ className }: Props) {
+  return (
+    <svg {...base} className={className} strokeWidth={2.2}>
+      <path d="M6 12h12M12 6v12" />
+    </svg>
+  )
+}
+
+/** Mũi tên thẳng xuống — nấc drop set, tụt tạ từ set bên trên. */
+export function IconArrowDown({ className }: Props) {
+  return (
+    <svg {...base} className={className} strokeWidth={2.2}>
+      <path d="M12 4v15M6.5 13.5 12 19l5.5-5.5" />
+    </svg>
+  )
+}
+
+/** Dấu × — xoá một nấc drop. */
+export function IconX({ className }: Props) {
+  return (
+    <svg {...base} className={className} strokeWidth={2.2}>
+      <path d="M7 7l10 10M17 7 7 17" />
+    </svg>
+  )
+}
+
+/** Thùng rác — ô đỏ lộ ra khi lướt set sang trái. */
+export function IconTrash({ className }: Props) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M4.5 7h15M9.5 7V4.8a.8.8 0 0 1 .8-.8h3.4a.8.8 0 0 1 .8.8V7" />
+      <path d="M6.5 7l.9 12.2a1.9 1.9 0 0 0 1.9 1.8h5.4a1.9 1.9 0 0 0 1.9-1.8L17.5 7M10.2 11v6M13.8 11v6" />
+    </svg>
+  )
+}
+
 /** Ảnh — chọn ảnh có sẵn trong album. */
 export function IconImage({ className }: Props) {
   return (

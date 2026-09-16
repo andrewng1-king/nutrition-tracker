@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { clearDrafts, draftStore } from '../lib/draft'
 import { n, shortDate, weekday } from '../lib/format'
 import { useData } from '../lib/hooks'
@@ -20,7 +20,7 @@ import {
   type GroupVolume,
 } from '../lib/muscles'
 import { doneSets, pendingIndexes } from '../lib/setRows'
-import { clearPlan, exerciseMap, getDay, setLiftEntry } from '../lib/storage'
+import { clearPlan, exerciseMap, getDay, setLiftDone, setLiftEntry } from '../lib/storage'
 import { flushSync } from '../lib/sync'
 import type { LiftGroup, LiftMode } from '../lib/types'
 import { Popup } from './Popup'
@@ -93,6 +93,8 @@ export function FinishSession({
     clearDrafts(date, ids)
     // Buổi đã xong thì kế hoạch hết việc: bài chưa tập không còn treo "kế hoạch".
     if (plan.length > 0) clearPlan(date, plan.map((p) => p.exerciseId))
+    // Chốt buổi: từ giờ bấm vào chỉ xem tổng kết, muốn sửa phải mở lại có xác nhận.
+    setLiftDone(date, mode, true)
     setStep('saving')
   }
 
@@ -173,22 +175,33 @@ export function FinishSession({
       )}
 
       {step === 'done' && (
-        <Summary date={date} mode={mode} synced={synced} onDone={onDone} />
+        <SessionSummary date={date} mode={mode} heading="Đã lưu buổi tập" synced={synced}>
+          <button className="btn primary full" onClick={onDone}>
+            Xong
+          </button>
+        </SessionSummary>
       )}
     </Popup>
   )
 }
 
-function Summary({
+/**
+ * Tổng kết một buổi: dấu tick, số bài/set/rep/volume, so với buổi trước, kỷ lục,
+ * volume theo nhóm cơ. Dùng chung cho lúc vừa lưu và lúc mở lại buổi đã chốt —
+ * `children` là hàng nút ở cuối.
+ */
+export function SessionSummary({
   date,
   mode,
+  heading,
   synced,
-  onDone,
+  children,
 }: {
   date: string
   mode: LiftMode
-  synced: 'synced' | 'pending' | 'local'
-  onDone: () => void
+  heading: string
+  synced?: 'synced' | 'pending' | 'local'
+  children: ReactNode
 }) {
   const data = useData()
   const exById = useMemo(() => exerciseMap(data), [data])
@@ -228,7 +241,7 @@ function Summary({
           />
         </svg>
       </div>
-      <p style={{ margin: 0, textAlign: 'center', fontWeight: 600 }}>Đã lưu buổi tập</p>
+      <p style={{ margin: 0, textAlign: 'center', fontWeight: 600 }}>{heading}</p>
       <p className="dim" style={{ margin: 0, textAlign: 'center' }}>
         {label ? `${label} · ` : ''}
         {weekday(date)} {shortDate(date)}
@@ -291,9 +304,7 @@ function Summary({
           </div>
         )}
 
-        <button className="btn primary full" onClick={onDone}>
-          Xong
-        </button>
+        {children}
       </div>
     </>
   )

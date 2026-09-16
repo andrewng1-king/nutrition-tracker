@@ -135,6 +135,11 @@ export interface Exercise {
   gear: LiftGear
   /** true = số nhập là MỖI BÊN (tạ đơn mỗi tay, đĩa mỗi đầu thanh) — volume nhân đôi */
   perSide?: boolean
+  /**
+   * true = tập lần lượt từng tay/chân, rep ghi là của một bên (bên yếu hơn) —
+   * volume nhân đôi, 1RM giữ nguyên. Độc lập với `perSide`: kg vẫn đọc như cũ.
+   */
+  unilateral?: boolean
   /** true for user-created exercises (editable / deletable) */
   custom?: boolean
   note?: string
@@ -190,6 +195,11 @@ export interface DayLog {
    * không làm sai volume hay PR.
    */
   plan?: PlanItem[]
+  /**
+   * Chế độ đã bấm "Hoàn thành buổi tập" trong ngày — buổi đó khoá, bấm vào chỉ
+   * xem tổng kết. Ngày đã qua thì tự coi là chốt, không cần cờ này.
+   */
+  liftDone?: LiftMode[]
   /** nhãn split của bản cũ (pull/push/…) — không dùng nữa, nhãn buổi suy từ bài đã tập */
   liftGroup?: string
   weightKg?: number

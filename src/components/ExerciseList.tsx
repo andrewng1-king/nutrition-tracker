@@ -9,18 +9,17 @@ import type { Exercise, LiftMode } from '../lib/types'
 import { GroupFilter, NO_FILTER, matchesFilter } from './GroupFilter'
 
 /**
- * Danh sách bài tập của một chế độ. Bấm tên để sửa tên/quy ước kg, bấm sparkline
- * bên phải để xem biểu đồ tiến bộ. Việc nhập set nằm ở LiftSession.
+ * Danh sách bài tập của một chế độ, nằm trong trang riêng. Bấm tên để sửa
+ * tên/quy ước kg, bấm sparkline bên phải để xem biểu đồ tiến bộ. Việc nhập set
+ * nằm ở LiftSession.
  */
 export function ExerciseList({
   mode,
   onOpen,
-  onCreate,
   onProgress,
 }: {
   mode: LiftMode
   onOpen: (ex: Exercise) => void
-  onCreate: () => void
   onProgress: (ex: Exercise) => void
 }) {
   const data = useData()
@@ -50,28 +49,19 @@ export function ExerciseList({
   )
 
   return (
-    <section className="card">
-      <div className="between" style={{ marginBottom: 10 }}>
-        <h2 className="h2">Danh sách bài · {list.length}</h2>
-        <button className="btn sm" onClick={onCreate}>
-          + Bài mới
-        </button>
-      </div>
-
+    <>
       <input
         placeholder="Tìm bài — gõ tiếng Anh hoặc tiếng Việt, không dấu cũng được"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
 
-      <div className="col" style={{ marginTop: 10 }}>
-        <GroupFilter exercises={inMode} value={filter} onChange={setFilter} />
-      </div>
+      <GroupFilter exercises={inMode} value={filter} onChange={setFilter} />
 
       {list.length === 0 ? (
         <p className="empty">Không có bài nào khớp.</p>
       ) : (
-        <div className="list" style={{ marginTop: 4 }}>
+        <div className="list">
           {list.map((ex) => {
             const last = lastSetsFor(data, ex.id, today)
             const top = last?.sets[0]
@@ -110,7 +100,7 @@ export function ExerciseList({
           })}
         </div>
       )}
-    </section>
+    </>
   )
 }
 

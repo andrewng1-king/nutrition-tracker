@@ -244,6 +244,16 @@ export function IconBurger({ className }: Props) {
   )
 }
 
+/** Bánh bao — vỏ tròn, nếp gấp chụm lên đỉnh. */
+export function IconBao({ className }: Props) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M3.4 17c0-5.2 3.9-9.4 8.6-9.4s8.6 4.2 8.6 9.4c0 1.3-1 2.4-2.3 2.4H5.7c-1.3 0-2.3-1.1-2.3-2.4Z" />
+      <path d="M12 7.6c-.9-1.1-.7-2.6.5-3.4M8.6 8.6c.9 1.4 2.1 2.2 3.4 2.4M15.4 8.6c-.9 1.4-2.1 2.2-3.4 2.4" />
+    </svg>
+  )
+}
+
 /** Xiên nướng — buffet nướng, đồ nướng. */
 export function IconSkewer({ className }: Props) {
   return (
@@ -423,6 +433,7 @@ const BY_ID: Record<string, FoodIconType> = {
   hat: IconNuts,
   'jollibee-combo': IconBurger,
   'com-tam-suon-opla': IconRicePlate,
+  'banh-bao-circle-k': IconBao,
   'buffet-nuong': IconSkewer,
   'duong-trang': IconSugarCube,
   'sua-dac': IconCan,
@@ -448,6 +459,7 @@ const BY_NAME: [RegExp, FoodIconType][] = [
     /burger|ham ?burger|kfc|lotteria|jollibee|mcdonald|ga ran|khoai chien|fast ?food/,
     IconBurger,
   ],
+  [/banh bao|\bbao\b|xiu mai|dim ?sum|ha cao/, IconBao],
   [/\bpho\b|\bbun\b|\bmi\b|mien|hu tieu|noodle|ramen|\bnui\b|banh canh|pasta|spaghetti/, IconNoodle],
   [/nuong|bbq|xien|buffet|\blau\b/, IconSkewer],
   [/banh mi|bread|toast|sandwich|baguette/, IconBread],

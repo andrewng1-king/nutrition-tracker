@@ -67,6 +67,19 @@ export function editRowField(
 }
 
 /**
+ * Kéo set `from` tới vị trí `to`, các set ở giữa dồn lại. Dòng đi nguyên cả cờ
+ * tick và cờ đã sửa tay — đổi chỗ không biến số thật thành số chép theo.
+ */
+export function moveRow<T>(rows: T[], from: number, to: number): T[] {
+  const inRange = (i: number) => Number.isInteger(i) && i >= 0 && i < rows.length
+  if (from === to || !inRange(from) || !inRange(to)) return rows
+  const next = [...rows]
+  const [row] = next.splice(from, 1)
+  next.splice(to, 0, row)
+  return next
+}
+
+/**
  * Dòng mở ra lúc vào bảng nhập set, theo thứ tự ưu tiên:
  * 1. set đã log hôm đó (đã tick), nối thêm phần kế hoạch chưa làm;
  * 2. kế hoạch của ngày (chưa tick);

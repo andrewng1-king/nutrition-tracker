@@ -12,6 +12,8 @@ import type { Exercise } from '../lib/types'
  * - `body`  thể trọng — kg là tải CỘNG THÊM, để 0 nếu tập tay không
  *
  * `perSide: true` chỉ ảnh hưởng cách tính volume (nhân đôi) và nhãn hiển thị.
+ * `unilateral: true` = tập lần lượt từng tay/chân, rep là của một bên — volume
+ * nhân đôi thêm lần nữa, độc lập với `perSide`.
  * Không quy đổi cáp/máy ra tải thật: mỗi hãng một tỉ số ròng rọc, quy đổi chỉ
  * tạo cảm giác chính xác giả. Ghi nhất quán là đủ để thấy tiến bộ.
  *
@@ -385,6 +387,17 @@ export const SEED_EXERCISES: Exercise[] = [
     mode: 'gym',
     gear: 'smith',
     perSide: true,
+  },
+  {
+    id: 'single-leg-smith-calf-raise',
+    name: 'Single-Leg Smith Machine Calf Raise',
+    group: 'legs',
+    subs: ['legs-calves'],
+    mode: 'gym',
+    gear: 'smith',
+    perSide: true,
+    unilateral: true,
+    note: 'Đứng một chân trên bục, thanh Smith trên vai. kg = đĩa mỗi đầu thanh; rep = rep của chân yếu hơn.',
   },
   {
     id: 'bulgarian-split-squat',
