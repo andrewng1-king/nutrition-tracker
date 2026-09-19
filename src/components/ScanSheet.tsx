@@ -138,6 +138,7 @@ export function ScanSheet({ date, onClose }: { date: string; onClose: () => void
     runDay: dayTypes.includes('run'),
     liftDay: dayTypes.includes('lift'),
     runBurnKcal: day.run?.burnKcal,
+    walkBurnKcal: day.walk?.burnKcal,
   })
   const today = sumEntries(day.entries, (id) => map.get(id))
   const week = weekSummary(data, date)

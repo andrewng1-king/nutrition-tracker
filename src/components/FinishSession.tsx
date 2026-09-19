@@ -7,6 +7,7 @@ import {
   entryVolume,
   isBodyweight,
   sessionPrs,
+  shortSet,
   summarize,
   volumeShort,
 } from '../lib/lift'
@@ -19,10 +20,12 @@ import {
   subKeyLabel,
   type GroupVolume,
 } from '../lib/muscles'
+import { clearRest } from '../lib/rest'
 import { doneSets, pendingIndexes } from '../lib/setRows'
 import { clearPlan, exerciseMap, getDay, setLiftDone, setLiftEntry } from '../lib/storage'
 import { flushSync } from '../lib/sync'
 import type { LiftGroup, LiftMode } from '../lib/types'
+import { walkLabel } from '../lib/walk'
 import { Popup } from './Popup'
 import { Stat } from './Stat'
 
@@ -95,6 +98,8 @@ export function FinishSession({
     if (plan.length > 0) clearPlan(date, plan.map((p) => p.exerciseId))
     // Chốt buổi: từ giờ bấm vào chỉ xem tổng kết, muốn sửa phải mở lại có xác nhận.
     setLiftDone(date, mode, true)
+    // hết buổi thì không còn hiệp nào để nghỉ chờ
+    clearRest()
     setStep('saving')
   }
 
@@ -186,29 +191,34 @@ export function FinishSession({
 }
 
 /**
- * Tổng kết một buổi: dấu tick, số bài/set/rep/volume, so với buổi trước, kỷ lục,
- * volume theo nhóm cơ. Dùng chung cho lúc vừa lưu và lúc mở lại buổi đã chốt —
+ * Tổng kết một buổi: số bài/set/rep/volume, so với buổi trước, kỷ lục, volume
+ * theo nhóm cơ. Dùng chung cho lúc vừa lưu và lúc mở lại buổi đã chốt —
  * `children` là hàng nút ở cuối.
+ *
+ * Vừa lưu (`heading`): có dấu tick xác nhận. Mở lại buổi cũ (`details`): không
+ * cần xác nhận gì nữa, thay bằng danh sách từng bài và các set đã tập.
  */
 export function SessionSummary({
   date,
   mode,
   heading,
+  details,
   synced,
   children,
 }: {
   date: string
   mode: LiftMode
-  heading: string
+  heading?: string
+  details?: boolean
   synced?: 'synced' | 'pending' | 'local'
   children: ReactNode
 }) {
   const data = useData()
   const exById = useMemo(() => exerciseMap(data), [data])
   const bodyKg = data.settings.weightKg
-  const lifts = (getDay(date, data).lifts ?? []).filter(
-    (e) => exById.get(e.exerciseId)?.mode === mode,
-  )
+  const day = getDay(date, data)
+  const lifts = (day.lifts ?? []).filter((e) => exById.get(e.exerciseId)?.mode === mode)
+  const walk = mode === 'gym' ? day.walk : undefined
   const total = summarize(lifts, exById, bodyKg)
   const compare = compareWithPrevious(data, mode, date, lifts, exById, bodyKg)
   const prs = sessionPrs(data, date, lifts, exById, bodyKg)
@@ -218,35 +228,46 @@ export function SessionSummary({
 
   return (
     <>
-      <div className="finish-mark">
-        <svg viewBox="0 0 64 64" aria-hidden="true">
-          <circle
-            className="finish-circle"
-            cx="32"
-            cy="32"
-            r="28"
-            fill="none"
-            stroke="var(--lime)"
-            strokeWidth="5"
-            transform="rotate(-90 32 32)"
-          />
-          <path
-            className="finish-tick"
-            d="m20 33 8 8 16-17"
-            fill="none"
-            stroke="var(--lime)"
-            strokeWidth="5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </div>
-      <p style={{ margin: 0, textAlign: 'center', fontWeight: 600 }}>{heading}</p>
-      <p className="dim" style={{ margin: 0, textAlign: 'center' }}>
-        {label ? `${label} · ` : ''}
-        {weekday(date)} {shortDate(date)}
-        {synced === 'pending' && ' · lưu trên máy, sẽ đồng bộ khi có mạng'}
-      </p>
+      {heading ? (
+        <>
+          <div className="finish-mark">
+            <svg viewBox="0 0 64 64" aria-hidden="true">
+              <circle
+                className="finish-circle"
+                cx="32"
+                cy="32"
+                r="28"
+                fill="none"
+                stroke="var(--lime)"
+                strokeWidth="5"
+                transform="rotate(-90 32 32)"
+              />
+              <path
+                className="finish-tick"
+                d="m20 33 8 8 16-17"
+                fill="none"
+                stroke="var(--lime)"
+                strokeWidth="5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
+          <p style={{ margin: 0, textAlign: 'center', fontWeight: 600 }}>{heading}</p>
+          <p className="dim" style={{ margin: 0, textAlign: 'center' }}>
+            {label ? `${label} · ` : ''}
+            {weekday(date)} {shortDate(date)}
+            {synced === 'pending' && ' · lưu trên máy, sẽ đồng bộ khi có mạng'}
+          </p>
+        </>
+      ) : (
+        <div style={{ textAlign: 'center' }}>
+          <p style={{ margin: 0, fontWeight: 700, fontSize: 17 }}>{label || 'Buổi tập'}</p>
+          <p className="dim" style={{ margin: 0 }}>
+            {weekday(date)} {shortDate(date)}
+          </p>
+        </div>
+      )}
 
       <div className="finish-stats">
         <div className="grid4" style={{ textAlign: 'center' }}>
@@ -255,6 +276,27 @@ export function SessionSummary({
           <Stat label="rep" value={n(total.reps)} />
           <Stat label="volume" value={volumeShort(total.volume)} unit="kg" />
         </div>
+
+        {details && lifts.length > 0 && (
+          <div className="finish-block">
+            <span className="h2">Các bài · {lifts.length}</span>
+            {lifts.map((e) => {
+              const ex = exById.get(e.exerciseId)
+              if (!ex) return null
+              return (
+                <div key={e.id} className="finish-ex">
+                  <div className="between">
+                    <span className="truncate">{ex.name}</span>
+                    <span className="num dim" style={{ whiteSpace: 'nowrap' }}>
+                      {volumeShort(entryVolume(ex, e, bodyKg))} kg
+                    </span>
+                  </div>
+                  <span className="dim num">{e.sets.map((set) => shortSet(set)).join('  ·  ')}</span>
+                </div>
+              )
+            })}
+          </div>
+        )}
 
         <div className="finish-block">
           <span className="h2">So với buổi trước</span>
@@ -274,6 +316,18 @@ export function SessionSummary({
             <span className="muted">Chưa có buổi nào cùng nhóm cơ để so.</span>
           )}
         </div>
+
+        {walk && (
+          <div className="finish-block">
+            <span className="h2">Đi bộ dốc</span>
+            <div className="between" style={{ fontSize: 13 }}>
+              <span className="muted num">{walkLabel(walk)}</span>
+              <span className="num" style={{ color: 'var(--lime)', whiteSpace: 'nowrap' }}>
+                +{n(walk.burnKcal)} kcal
+              </span>
+            </div>
+          </div>
+        )}
 
         {prs.length > 0 && (
           <div className="finish-block">

@@ -3,6 +3,7 @@ import type { DraftRow } from './draft'
 import {
   doneSets,
   editRowField,
+  focusIndex,
   initialRows,
   moveRow,
   pendingIndexes,
@@ -130,5 +131,31 @@ describe('initialRows', () => {
 
   it('opens three blank rows for a brand-new exercise', () => {
     expect(initialRows([], [], [])).toHaveLength(3)
+  })
+})
+
+describe('focusIndex', () => {
+  const rows = [row('50', '10', true), row('50', '10'), row('50', '10')]
+
+  it('follows the first unticked set by default', () => {
+    expect(focusIndex(rows, null)).toBe(1)
+  })
+
+  it('moves on once that set is ticked', () => {
+    const next = rows.map((r, i) => (i === 1 ? { ...r, done: true } : r))
+    expect(focusIndex(next, null)).toBe(2)
+  })
+
+  it('opens nothing when every set is ticked', () => {
+    expect(focusIndex(rows.map((r) => ({ ...r, done: true })), null)).toBe(-1)
+  })
+
+  it('keeps a set the user tapped, even a ticked one', () => {
+    expect(focusIndex(rows, 0)).toBe(0)
+  })
+
+  it('collapses on -1 and on an index that no longer exists', () => {
+    expect(focusIndex(rows, -1)).toBe(-1)
+    expect(focusIndex(rows, 3)).toBe(-1)
   })
 })

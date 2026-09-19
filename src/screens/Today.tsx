@@ -10,7 +10,7 @@ import { Sheet } from '../components/Sheet'
 import { WeekChart } from '../components/WeekChart'
 import { DayTypeBar } from '../components/DayTypeBar'
 import { FoodIcon } from '../components/foodIcons'
-import { IconCamera, IconChevron, IconTurbo } from '../components/icons'
+import { IconCamera, IconChevron, IconTurbo, IconWalk } from '../components/icons'
 import {
   MEAL_LABELS,
   MEAL_ORDER,
@@ -32,6 +32,7 @@ import { formatDuration, formatPace, paceSecPerKm } from '../lib/run'
 import { buildNotice, type NoticeKey } from '../lib/status'
 import { allFoods, exerciseMap, foodMap, saveTemplate, setTurbo } from '../lib/storage'
 import type { Entry, Exercise, Food, LiftEntry, Macros, MealSlot } from '../lib/types'
+import { walkLabel } from '../lib/walk'
 import { weekSummary } from '../lib/week'
 
 export function Today({ date, setDate }: { date: string; setDate: (d: string) => void }) {
@@ -64,6 +65,7 @@ export function Today({ date, setDate }: { date: string; setDate: (d: string) =>
     runDay,
     liftDay,
     runBurnKcal: day.run?.burnKcal,
+    walkBurnKcal: day.walk?.burnKcal,
   })
   const recentIds = Object.entries(data.recent)
     .sort((a, b) => b[1] - a[1])
@@ -146,6 +148,18 @@ export function Today({ date, setDate }: { date: string; setDate: (d: string) =>
               liftDay ? 'Chưa log bài nào — nhập ở tab Bài tập.' : 'Ngày này không chọn buổi tạ.'
             }
           />
+          {day.walk && (
+            <div className="between walk-line">
+              <span className="row" style={{ gap: 6, minWidth: 0 }}>
+                <IconWalk className="ico walk-ico" />
+                <span style={{ whiteSpace: 'nowrap' }}>Đi bộ dốc</span>
+                <span className="dim num truncate">{walkLabel(day.walk)}</span>
+              </span>
+              <span className="num" style={{ color: 'var(--lime)', whiteSpace: 'nowrap' }}>
+                +{n(day.walk.burnKcal)} kcal
+              </span>
+            </div>
+          )}
         </SessionCard>
       ),
     },

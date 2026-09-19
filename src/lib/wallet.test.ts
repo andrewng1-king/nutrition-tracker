@@ -24,6 +24,7 @@ function makeData(days: DayLog[]): AppData {
     lastAmounts: {},
     lastCosts: {},
     recent: {},
+    restSec: {},
   }
 }
 

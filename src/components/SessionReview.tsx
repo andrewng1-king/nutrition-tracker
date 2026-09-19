@@ -5,7 +5,7 @@ import { SessionSummary } from './FinishSession'
 import { Popup } from './Popup'
 
 /**
- * Bấm vào một buổi đã chốt: hiện lại đúng tổng kết lúc bấm Hoàn thành. Sửa được,
+ * Bấm vào một buổi đã chốt: tổng kết của buổi kèm từng bài và các set. Sửa được,
  * nhưng phải qua một bước xác nhận — buổi đã chốt không nên sửa vì lỡ tay.
  */
 export function SessionReview({
@@ -42,7 +42,7 @@ export function SessionReview({
           </button>
         </>
       ) : (
-        <SessionSummary date={date} mode={mode} heading="Đã hoàn thành buổi tập">
+        <SessionSummary date={date} mode={mode} details>
           <button className="btn primary full" onClick={onClose}>
             Đóng
           </button>

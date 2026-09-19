@@ -9,6 +9,7 @@ import {
   isSessionLocked,
   kgLabel,
   kgStepFor,
+  lastChange,
   lastSetsFor,
   planFromTemplate,
   priorBestE1rm,
@@ -21,7 +22,6 @@ import {
   suggestDropKg,
   summarize,
   topSet,
-  weeklyVolume,
 } from './lift'
 import { DEFAULT_SETTINGS } from './macros'
 import type { AppData, DayLog, Exercise, LiftEntry } from './types'
@@ -76,6 +76,7 @@ function appData(days: Record<string, LiftEntry[]>): AppData {
     lastAmounts: {},
     lastCosts: {},
     recent: {},
+    restSec: {},
   }
 }
 
@@ -244,38 +245,6 @@ describe('exerciseHistory', () => {
   })
 })
 
-describe('weeklyVolume', () => {
-  it('buckets sessions into Mon–Sun weeks and splits volume by muscle group', () => {
-    // 2026-09-04 là thứ 6, 2026-09-07 là thứ 2 tuần sau
-    const data = appData({
-      '2026-09-04': [entry('db-row', [[22, 10]])],
-      '2026-09-07': [entry('smith-squat', [[22.5, 8]])],
-    })
-    const map = new Map([
-      [dbRow.id, dbRow],
-      [squat.id, squat],
-    ])
-    const weeks = weeklyVolume(data, 2, map, '2026-09-07')
-    expect(weeks).toHaveLength(2)
-    expect(weeks[0].start).toBe('2026-08-31')
-    expect(weeks[0].byGroup.back).toBe(440)
-    // bài hai phần: volume chia đôi cho từng phần
-    expect(weeks[0].bySub['back-lat-low']).toBe(220)
-    expect(weeks[0].bySub['back-mid']).toBe(220)
-    expect(weeks[1].start).toBe('2026-09-07')
-    expect(weeks[1].byGroup.legs).toBe(360)
-    // bài không tách phần gom vào khoá "chưa tách" của nhóm
-    expect(weeks[1].bySub['legs:all']).toBe(360)
-    expect(weeks[1].sessions).toBe(1)
-  })
-
-  it('leaves a week with no training at zero instead of dropping it', () => {
-    const weeks = weeklyVolume(appData({}), 3, new Map(), '2026-09-07')
-    expect(weeks).toHaveLength(3)
-    expect(weeks.every((w) => w.total === 0 && w.sessions === 0)).toBe(true)
-  })
-})
-
 const pullUp: Exercise = {
   id: 'pull-up',
   name: 'Pull-Up',
@@ -302,22 +271,24 @@ describe('bodyweight exercises', () => {
     expect(kgLabel(pullUp, 0)).toBe('tay không')
     expect(kgLabel(pullUp, 7.5)).toBe('+7,5 kg')
   })
+})
 
-  it('splits weekly volume by mode so gym and calisthenic do not mix', () => {
+describe('lastChange', () => {
+  it('compares the latest session with the one before, in %', () => {
     const data = appData({
-      '2026-09-07': [entry('db-row', [[22, 10]]), entry('pull-up', [[0, 8]])],
+      '2026-09-01': [entry('lat-pulldown', [[50, 10], [50, 10]])],
+      '2026-09-04': [entry('lat-pulldown', [[55, 10]])],
     })
-    const map = new Map([
-      [dbRow.id, dbRow],
-      [pullUp.id, pullUp],
-    ])
-    const gym = weeklyVolume(data, 1, map, '2026-09-07', { mode: 'gym', bodyKg: 60 })
-    const cal = weeklyVolume(data, 1, map, '2026-09-07', {
-      mode: 'calisthenic',
-      bodyKg: 60,
-    })
-    expect(gym[0].total).toBe(440)
-    expect(cal[0].total).toBe(480)
+    const c = lastChange(data, pulldown, 0)!
+    // 1RM: 50×(1+10/30) -> 55×(1+10/30) = +10%
+    expect(c.e1rm).toBeCloseTo(10)
+    // volume: 1000 -> 550
+    expect(c.volume).toBeCloseTo(-45)
+  })
+
+  it('needs two sessions', () => {
+    const data = appData({ '2026-09-01': [entry('lat-pulldown', [[50, 10]])] })
+    expect(lastChange(data, pulldown, 0)).toBeNull()
   })
 })
 

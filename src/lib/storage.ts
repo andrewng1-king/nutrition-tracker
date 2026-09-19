@@ -15,6 +15,7 @@ import type {
   MealSlot,
   PlanItem,
   Template,
+  WalkLog,
   WorkoutTemplate,
 } from './types'
 
@@ -33,6 +34,7 @@ function emptyData(): AppData {
     lastAmounts: {},
     lastCosts: {},
     recent: {},
+    restSec: {},
   }
 }
 
@@ -387,6 +389,16 @@ export function setLiftDone(date: string, mode: LiftMode, done: boolean) {
       }
     }),
   )
+}
+
+/** Ghi buổi đi bộ dốc của ngày; `undefined` = xoá. */
+export function setWalk(date: string, walk: WalkLog | undefined) {
+  setDayField(date, { walk })
+}
+
+/** Nhớ số giây nghỉ của một bài — lần sau tick set bài đó, đồng hồ chạy từ số này. */
+export function setRestSec(exerciseId: string, sec: number) {
+  update((d) => ({ ...d, restSec: { ...(d.restSec ?? {}), [exerciseId]: sec } }))
 }
 
 // ---------------- kế hoạch & buổi mẫu ----------------

@@ -20,6 +20,8 @@ export function Stepper({
   step,
   label,
   integer,
+  unit,
+  size,
 }: {
   value: string
   onChange: (value: string) => void
@@ -27,6 +29,10 @@ export function Stepper({
   label: string
   /** ô rep: chỉ số nguyên, bàn phím số không có dấu phẩy */
   integer?: boolean
+  /** đơn vị in nhỏ dưới con số ("kg", "rep") — nằm trong ô, không ăn bề ngang */
+  unit?: string
+  /** 'lg' = thẻ set đang tập: ô cao, số to, nút ± vuông đủ cho ngón cái */
+  size?: 'lg'
 }) {
   const valueRef = useRef(value)
   valueRef.current = value
@@ -65,7 +71,7 @@ export function Stepper({
   })
 
   return (
-    <div className="stepper">
+    <div className={size ? `stepper ${size}` : 'stepper'}>
       <button
         type="button"
         className="stepper-btn"
@@ -74,13 +80,20 @@ export function Stepper({
       >
         <IconMinus className="ico" />
       </button>
-      <input
-        inputMode={integer ? 'numeric' : 'decimal'}
-        placeholder="0"
-        aria-label={label}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      />
+      <label className={unit ? 'stepper-field has-unit' : 'stepper-field'}>
+        <input
+          inputMode={integer ? 'numeric' : 'decimal'}
+          placeholder="0"
+          aria-label={label}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        />
+        {unit && (
+          <span className="stepper-unit" aria-hidden="true">
+            {unit}
+          </span>
+        )}
+      </label>
       <button
         type="button"
         className="stepper-btn"

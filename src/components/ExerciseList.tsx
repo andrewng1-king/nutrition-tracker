@@ -1,17 +1,22 @@
 import { useMemo, useState } from 'react'
-import { matchName, n, shortDate } from '../lib/format'
-import { useData } from '../lib/hooks'
-import { GEAR_LABELS, isBodyweight, lastSetsFor, setLabel, sparkValues } from '../lib/lift'
+import { matchName, shortDate } from '../lib/format'
+import { useData, usePref } from '../lib/hooks'
+import { GEAR_LABELS, lastChange, lastSetsFor, setLabel } from '../lib/lift'
 import { dateKey } from '../lib/macros'
 import { GROUP_COLOR, LIFT_GROUPS, LIFT_GROUP_LABELS } from '../lib/muscles'
 import { allExercises } from '../lib/storage'
 import type { Exercise, LiftMode } from '../lib/types'
+import { Delta } from './Delta'
 import { GroupFilter, NO_FILTER, matchesFilter } from './GroupFilter'
 
 /**
  * Danh sách bài tập của một chế độ, nằm trong trang riêng. Bấm tên để sửa
- * tên/quy ước kg, bấm sparkline bên phải để xem biểu đồ tiến bộ. Việc nhập set
+ * tên/quy ước kg, bấm con số % bên phải để xem biểu đồ tiến bộ. Việc nhập set
  * nằm ở LiftSession.
+ *
+ * Con số % là buổi gần nhất so với buổi trước đó. Một công tắc chung cho cả danh
+ * sách chọn đo bằng 1RM ước tính (khoẻ lên chưa) hay volume (làm nhiều việc hơn
+ * chưa) — mỗi dòng chỉ một số cho dễ lướt.
  */
 export function ExerciseList({
   mode,
@@ -27,6 +32,7 @@ export function ExerciseList({
   const bodyKg = data.settings.weightKg
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState(NO_FILTER)
+  const [metric, setMetric] = usePref<'e1rm' | 'volume'>('ex-metric', 'e1rm', ['e1rm', 'volume'])
 
   const inMode = useMemo(() => allExercises(data).filter((ex) => ex.mode === mode), [data, mode])
   const list = useMemo(
@@ -43,8 +49,8 @@ export function ExerciseList({
     [inMode, filter, query],
   )
 
-  const sparks = useMemo(
-    () => new Map(list.map((ex) => [ex.id, sparkValues(data, ex, bodyKg)])),
+  const changes = useMemo(
+    () => new Map(list.map((ex) => [ex.id, lastChange(data, ex, bodyKg)])),
     [list, data, bodyKg],
   )
 
@@ -58,6 +64,18 @@ export function ExerciseList({
 
       <GroupFilter exercises={inMode} value={filter} onChange={setFilter} />
 
+      <div className="between">
+        <span className="dim">So với lần tập trước</span>
+        <div className="seg sm" style={{ width: 170 }}>
+          <button aria-pressed={metric === 'e1rm'} onClick={() => setMetric('e1rm')}>
+            1RM
+          </button>
+          <button aria-pressed={metric === 'volume'} onClick={() => setMetric('volume')}>
+            Volume
+          </button>
+        </div>
+      </div>
+
       {list.length === 0 ? (
         <p className="empty">Không có bài nào khớp.</p>
       ) : (
@@ -65,7 +83,7 @@ export function ExerciseList({
           {list.map((ex) => {
             const last = lastSetsFor(data, ex.id, today)
             const top = last?.sets[0]
-            const values = sparks.get(ex.id) ?? []
+            const change = changes.get(ex.id)
             return (
               <div key={ex.id} className="list-item ex-row">
                 <button className="ex-open" onClick={() => onOpen(ex)}>
@@ -86,14 +104,18 @@ export function ExerciseList({
                     </span>
                   </span>
                 </button>
-                {values.length > 0 && (
-                  <SparkButton
-                    values={values}
-                    bodyweight={isBodyweight(ex)}
-                    color={GROUP_COLOR[ex.group]}
-                    name={ex.name}
+                {(top || change) && (
+                  <button
+                    className="ex-delta"
                     onClick={() => onProgress(ex)}
-                  />
+                    aria-label={`Xem tiến bộ ${ex.name}`}
+                  >
+                    {change ? (
+                      <Delta pct={metric === 'e1rm' ? change.e1rm : change.volume} />
+                    ) : (
+                      <span className="dim">mới</span>
+                    )}
+                  </button>
                 )}
               </div>
             )
@@ -101,76 +123,5 @@ export function ExerciseList({
         </div>
       )}
     </>
-  )
-}
-
-const SW = 40
-const SH = 18
-
-/**
- * Nút xem tiến bộ kiêm biểu đồ mini: 6 buổi gần nhất của chỉ số chính và mức
- * chênh giữa buổi đầu và buổi cuối. Lướt danh sách là thấy bài nào đang lên,
- * bài nào đứng yên — không cần mở từng bài.
- */
-function SparkButton({
-  values,
-  bodyweight,
-  color,
-  name,
-  onClick,
-}: {
-  values: number[]
-  bodyweight: boolean
-  color: string
-  name: string
-  onClick: () => void
-}) {
-  const min = Math.min(...values)
-  const max = Math.max(...values)
-  const span = max - min
-  const points = values.map((v, i) => {
-    const x = values.length === 1 ? SW / 2 : 1.5 + (i / (values.length - 1)) * (SW - 3)
-    const y = span === 0 ? SH / 2 : SH - 2 - ((v - min) / span) * (SH - 4)
-    return `${x.toFixed(1)},${y.toFixed(1)}`
-  })
-
-  const digits = bodyweight ? 0 : 1
-  const delta = Number((values[values.length - 1] - values[0]).toFixed(digits))
-  const tone = values.length === 1 || delta === 0 ? 'flat' : delta > 0 ? 'up' : 'down'
-  const text =
-    values.length === 1
-      ? 'mới'
-      : delta === 0
-        ? '±0'
-        : `${delta > 0 ? '+' : '−'}${n(Math.abs(delta), digits)}`
-  const unit = bodyweight ? 'rep' : 'kg 1RM'
-
-  return (
-    <button
-      className="spark-btn"
-      data-tone={tone}
-      onClick={onClick}
-      aria-label={
-        values.length === 1
-          ? `Xem tiến bộ ${name}: mới tập 1 buổi`
-          : `Xem tiến bộ ${name}: ${text} ${unit} qua ${values.length} buổi gần nhất`
-      }
-    >
-      <svg width={SW} height={SH} viewBox={`0 0 ${SW} ${SH}`} aria-hidden="true">
-        {values.length === 1 ? (
-          <circle cx={SW / 2} cy={SH / 2} r="2.4" fill={color} />
-        ) : (
-          <polyline
-            points={points.join(' ')}
-            fill="none"
-            stroke={color}
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        )}
-      </svg>
-      <span className="spark-delta num">{text}</span>
-    </button>
   )
 }

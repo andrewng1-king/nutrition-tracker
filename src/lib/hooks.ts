@@ -16,6 +16,34 @@ export function useSync(): SyncState {
   return useSyncExternalStore(syncStore.subscribe, syncStore.get, syncStore.get)
 }
 
+/**
+ * Lựa chọn hiển thị nhớ trên máy này (kiểu biểu đồ, khung thời gian…). Chỉ là
+ * tiện lợi: localStorage không đọc được thì dùng mặc định, không báo lỗi.
+ */
+export function usePref<T extends string>(
+  key: string,
+  fallback: T,
+  allowed: readonly T[],
+): [T, (value: T) => void] {
+  const [value, setValue] = useState<T>(() => {
+    try {
+      const saved = localStorage.getItem(`nt-pref:${key}`)
+      return saved && (allowed as readonly string[]).includes(saved) ? (saved as T) : fallback
+    } catch {
+      return fallback
+    }
+  })
+  const set = (next: T) => {
+    setValue(next)
+    try {
+      localStorage.setItem(`nt-pref:${key}`, next)
+    } catch {
+      // chế độ riêng tư chặn ghi — lựa chọn chỉ sống trong phiên này
+    }
+  }
+  return [value, set]
+}
+
 const overlays: { close: () => void }[] = []
 
 function onOverlayKey(e: KeyboardEvent) {

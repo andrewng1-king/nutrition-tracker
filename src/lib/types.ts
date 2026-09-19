@@ -61,6 +61,17 @@ export interface RunLog {
 }
 
 /**
+ * Đi bộ dốc trên máy chạy, thường làm ngay sau buổi tạ. Ba con số đọc trên
+ * màn hình máy; kcal là phần NET tính lúc lưu, cộng thẳng vào target như chạy bộ.
+ */
+export interface WalkLog {
+  minutes: number
+  speedKmh: number
+  inclinePct: number
+  burnKcal: number
+}
+
+/**
  * Nhóm cơ chính của bài. Trước đây là nhóm split (pull/push/…) — dữ liệu cũ còn
  * mang 'pull' / 'push' được quy đổi lúc đọc, xem `normalizeExercise` ở lib/muscles.ts.
  */
@@ -181,6 +192,8 @@ export interface DayLog {
   /** nhãn ngày người dùng tự chọn; không có thì suy ra từ lịch tuần + log thực tế */
   dayTypes?: DayType[]
   run?: RunLog
+  /** đi bộ dốc sau buổi tạ — kcal cộng vào target bất kể nhãn ngày */
+  walk?: WalkLog
   /**
    * Ngày chạy có kèm calisthenic — "Turbo". Thuần nhãn hiển thị: phần calo của
    * buổi thể trọng đã nằm trong nhãn `lift`, cộng thêm ở đây là tính hai lần.
@@ -290,4 +303,6 @@ export interface AppData {
   lastCosts: Record<string, number>
   /** foodId -> last time logged, powers the "Gần đây" list */
   recent: Record<string, number>
+  /** exerciseId -> giây nghỉ giữa set, nhớ theo lần chỉnh −/+ gần nhất của bài đó */
+  restSec: Record<string, number>
 }

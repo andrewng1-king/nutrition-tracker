@@ -52,6 +52,17 @@ export const SEED_EXERCISES: Exercise[] = [
     gear: 'stack',
   },
   {
+    // id riêng với bài Pull-Up bên calisthenic: hai tab lọc bài theo `mode`, một
+    // bài không nằm được ở cả hai.
+    id: 'gym-pull-up',
+    name: 'Pull-Up',
+    group: 'back',
+    subs: ['back-lat-mid', 'back-lat-low'],
+    mode: 'gym',
+    gear: 'body',
+    note: 'Kéo xà. kg = tải cộng thêm (đai tạ); tay không thì để 0.',
+  },
+  {
     id: 'lat-pulldown',
     name: 'Lat Pulldown',
     group: 'back',

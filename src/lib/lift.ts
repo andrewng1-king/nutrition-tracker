@@ -1,5 +1,5 @@
 import { dateKey } from './macros'
-import { LIFT_GROUPS, sessionGroups, splitBySub, type SubKey } from './muscles'
+import { sessionGroups } from './muscles'
 import type {
   AppData,
   DayLog,
@@ -26,7 +26,7 @@ export function isBodyweight(ex: Exercise): boolean {
   return ex.gear === 'body'
 }
 
-/**
+/*
  * Buổi tạ KHÔNG cộng nguyên số kcal đốt được vào target.
  * TDEE 2600 trong spec đã gồm 4-5 buổi gym/tuần (activity multiplier), nên cộng
  * cả 200 kcal là tính hai lần và ăn mòn deficit 10-15%. Chỉ phần vượt trung bình
@@ -38,8 +38,6 @@ export function isBodyweight(ex: Exercise): boolean {
  * lượng khẩu phần (±10% của 2300 kcal ≈ ±230 kcal). Chạy bộ là ngoại lệ có lý do:
  * 5km và 10km chênh ~310 kcal, vượt hẳn ngưỡng nhiễu.
  */
-export const LIFT_KCAL_NOTE =
-  'Số set và mức tạ ở đây không đổi target calo — phần calo của ngày tập đã tính sẵn ở thanh loại ngày. Chỗ này chỉ đo tiến bộ sức nâng.'
 
 /** Số nhập là mỗi bên thì tải thật gấp đôi. */
 export function sideFactor(ex: Exercise): number {
@@ -277,75 +275,6 @@ export function priorBestE1rm(
     .reduce((best, p) => Math.max(best, p.e1rm), 0)
 }
 
-export interface WeekVolume {
-  /** ngày đầu tuần (thứ 2), YYYY-MM-DD */
-  start: string
-  byGroup: Record<LiftGroup, number>
-  /** volume từng nhóm phụ — bài nhiều phần thì chia đều, xem `splitBySub` */
-  bySub: Partial<Record<SubKey, number>>
-  total: number
-  sessions: number
-}
-
-const p2 = (x: number) => String(x).padStart(2, '0')
-
-function fmt(d: Date): string {
-  return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`
-}
-
-function mondayOf(key: string): string {
-  const [y, m, d] = key.split('-').map(Number)
-  const date = new Date(y, m - 1, d)
-  // getDay(): CN=0 -> lùi 6 ngày; T2=1 -> lùi 0
-  date.setDate(date.getDate() - ((date.getDay() + 6) % 7))
-  return fmt(date)
-}
-
-/**
- * Volume theo tuần cho `weeks` tuần lịch gần nhất, cũ -> mới.
- * Đếm theo tuần chứa `end` rồi lùi lại, KHÔNG theo cửa sổ `weeks × 7` ngày —
- * cửa sổ ngày sẽ chạm sang tuần thứ N+1 mỗi khi `end` rơi vào đầu tuần.
- */
-export function weeklyVolume(
-  data: AppData,
-  weeks: number,
-  exById: Map<string, Exercise>,
-  end?: string,
-  opts: { mode?: LiftMode; bodyKg?: number } = {},
-): WeekVolume[] {
-  const zero = () =>
-    Object.fromEntries(LIFT_GROUPS.map((g) => [g, 0])) as Record<LiftGroup, number>
-
-  const last = mondayOf(end ?? dateKey())
-  const [ly, lm, ld] = last.split('-').map(Number)
-  const buckets = new Map<string, WeekVolume>()
-  for (let i = weeks - 1; i >= 0; i--) {
-    const d = new Date(ly, lm - 1, ld - i * 7)
-    const start = fmt(d)
-    buckets.set(start, { start, byGroup: zero(), bySub: {}, total: 0, sessions: 0 })
-  }
-
-  for (const date of liftDates(data)) {
-    const start = mondayOf(date)
-    const bucket = buckets.get(start)
-    if (!bucket) continue
-    bucket.sessions += 1
-    for (const e of data.days[date]?.lifts ?? []) {
-      const ex = exById.get(e.exerciseId)
-      if (!ex) continue
-      if (opts.mode && ex.mode !== opts.mode) continue
-      const v = entryVolume(ex, e, opts.bodyKg ?? 0)
-      bucket.byGroup[ex.group] += v
-      bucket.total += v
-      for (const [key, part] of splitBySub(ex, v)) {
-        bucket.bySub[key] = (bucket.bySub[key] ?? 0) + part
-      }
-    }
-  }
-
-  return [...buckets.values()].sort((a, b) => a.start.localeCompare(b.start))
-}
-
 /**
  * "22,5" và "22.5" đều ra 22.5 — máy nào cũng in dấu phẩy, bàn phím số nào cũng
  * gõ dấu chấm. Chuỗi rỗng hoặc rác trả về 0 chứ không NaN.
@@ -495,14 +424,18 @@ export function planFromTemplate(
   })
 }
 
-/** Điểm cho sparkline ở danh sách bài: `count` buổi gần nhất của chỉ số chính. */
-export function sparkValues(
+/**
+ * Buổi gần nhất so với buổi trước đó của cùng bài, tính bằng %: 1RM ước tính (sức
+ * nâng của set tốt nhất) và volume cả bài. Chưa đủ hai buổi thì `null`.
+ */
+export function lastChange(
   data: AppData,
   ex: Exercise,
   bodyKg: number,
-  count = 6,
-): number[] {
-  return exerciseHistory(data, ex, undefined, bodyKg)
-    .slice(-count)
-    .map((p) => (isBodyweight(ex) ? p.top.reps : p.e1rm))
+): { e1rm: number; volume: number } | null {
+  const history = exerciseHistory(data, ex, undefined, bodyKg)
+  if (history.length < 2) return null
+  const [prev, last] = history.slice(-2)
+  const pct = (before: number, after: number) => (before > 0 ? ((after - before) / before) * 100 : 0)
+  return { e1rm: pct(prev.e1rm, last.e1rm), volume: pct(prev.volume, last.volume) }
 }

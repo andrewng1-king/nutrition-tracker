@@ -23,6 +23,7 @@ function data(days: Record<string, DayLog> = {}): AppData {
     lastAmounts: {},
     lastCosts: {},
     recent: {},
+    restSec: {},
   }
 }
 

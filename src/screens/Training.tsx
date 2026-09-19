@@ -229,7 +229,7 @@ function LiftModeView({
 
 const PAGE = 6
 
-/** Các buổi đã tập, mới nhất trước. Bấm vào để xem tổng kết (buổi đã chốt) hoặc mở sửa tiếp. */
+/** Các buổi đã tập, mới nhất trước. Bấm vào để xem tổng kết kèm từng bài (buổi đã chốt) hoặc mở sửa tiếp. */
 function SessionHistory({ mode, onOpen }: { mode: LiftMode; onOpen: (date: string) => void }) {
   const data = useData()
   const exById = useMemo(() => exerciseMap(data), [data])
@@ -253,7 +253,6 @@ function SessionHistory({ mode, onOpen }: { mode: LiftMode; onOpen: (date: strin
             (e) => exById.get(e.exerciseId)?.mode === mode,
           )
           const s = summarize(entries, exById, data.settings.weightKg)
-          const names = entries.flatMap((e) => exById.get(e.exerciseId)?.name ?? [])
           const label = sessionLabel(entries, exById)
           return (
             <button key={date} className="list-item" onClick={() => onOpen(date)}>
@@ -262,9 +261,6 @@ function SessionHistory({ mode, onOpen }: { mode: LiftMode; onOpen: (date: strin
                   {dayLabel(date)}
                   {label ? ` · ${label}` : ''}
                   <span className="dim"> · {s.exercises} bài · {s.sets} set</span>
-                </span>
-                <span className="dim truncate" style={{ display: 'block' }}>
-                  {names.join(', ')}
                 </span>
               </span>
               <span className="entry-kcal">

@@ -21,6 +21,7 @@ const META_FIELDS: Record<MetaKey, true> = {
   lastAmounts: true,
   lastCosts: true,
   recent: true,
+  restSec: true,
 }
 
 export const META_KEYS = Object.keys(META_FIELDS) as MetaKey[]
@@ -132,6 +133,7 @@ export function mergeFirstSync(
     lastAmounts: { ...local.lastAmounts, ...r.lastAmounts },
     lastCosts: { ...local.lastCosts, ...r.lastCosts },
     recent: { ...local.recent, ...r.recent },
+    restSec: { ...local.restSec, ...r.restSec },
     days,
   }
   return { data, dirtyDays }

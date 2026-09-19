@@ -67,6 +67,16 @@ export function editRowField(
 }
 
 /**
+ * Set đang mở thẻ lớn. `pick`: `null` = tự theo set đầu tiên chưa tick (tick
+ * xong là thẻ nhảy sang set kế), `-1` = gập hết, số = set người dùng chạm vào.
+ * Trả −1 khi không có set nào mở.
+ */
+export function focusIndex(rows: DraftRow[], pick: number | null): number {
+  if (pick === null) return rows.findIndex((r) => !r.done)
+  return pick >= 0 && pick < rows.length ? pick : -1
+}
+
+/**
  * Kéo set `from` tới vị trí `to`, các set ở giữa dồn lại. Dòng đi nguyên cả cờ
  * tick và cờ đã sửa tay — đổi chỗ không biến số thật thành số chép theo.
  */

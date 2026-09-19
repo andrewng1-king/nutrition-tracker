@@ -4,7 +4,6 @@ import { dayLabel, matchName, n, shortDate, weekday } from '../lib/format'
 import { useData, useDrafts } from '../lib/hooks'
 import {
   GEAR_LABELS,
-  LIFT_KCAL_NOTE,
   e1rm,
   entryVolume,
   isBodyweight,
@@ -25,9 +24,11 @@ import {
 } from '../lib/lift'
 import { dateKey } from '../lib/macros'
 import { LIFT_GROUP_LABELS, sessionLabel } from '../lib/muscles'
+import { clearRest, primeAudio, restSecFor, startRest, useRest } from '../lib/rest'
 import {
   doneSets,
   editRowField,
+  focusIndex,
   initialRows,
   isValidSet,
   kgInput,
@@ -44,17 +45,21 @@ import {
   getDay,
   saveWorkoutTemplate,
   setLiftEntry,
+  setWalk,
 } from '../lib/storage'
 import type { AppData, Exercise, LiftEntry, LiftMode, LiftSet, PlanItem } from '../lib/types'
+import { walkLabel } from '../lib/walk'
 import { ExerciseForm } from './ExerciseForm'
 import { FinishSession } from './FinishSession'
 import { GroupFilter, NO_FILTER, matchesFilter } from './GroupFilter'
-import { IconArrowDown, IconCheck, IconTrash, IconX } from './icons'
+import { IconArrowDown, IconCheck, IconTrash, IconWalk, IconX } from './icons'
 import { Page } from './Page'
+import { RestBar } from './RestBar'
 import { Stat } from './Stat'
 import { Stepper } from './Stepper'
 import { useSetDrag } from './useSetDrag'
 import { useSetSwipe } from './useSetSwipe'
+import { WalkForm } from './WalkForm'
 
 type View =
   | { kind: 'session' }
@@ -62,6 +67,7 @@ type View =
   | { kind: 'edit'; exerciseId: string }
   | { kind: 'form'; exerciseId?: string }
   | { kind: 'save-template' }
+  | { kind: 'walk' }
 
 /**
  * Luồng buổi tập, mỗi bước một trang toàn màn hình: buổi tập → chọn bài → nhập
@@ -92,6 +98,9 @@ export function LiftSession({
     initialExerciseId ? { kind: 'edit', exerciseId: initialExerciseId } : { kind: 'session' },
   )
   const [finishing, setFinishing] = useState(false)
+  const rest = useRest()
+  // Đồng hồ nghỉ dính đáy mọi trang của buổi tập — đổi sang bài khác vẫn thấy.
+  const restBar = rest ? <RestBar /> : null
 
   // Trang gym chỉ hiện bài gym, trang calisthenic chỉ hiện bài thể trọng.
   const inMode = (exerciseId: string) => exById.get(exerciseId)?.mode === mode
@@ -137,7 +146,7 @@ export function LiftSession({
       return null
     }
     return (
-      <Page title={ex.name} onBack={toSession}>
+      <Page title={ex.name} onBack={toSession} footer={restBar}>
         <SetEditor
           key={ex.id}
           ex={ex}
@@ -146,6 +155,14 @@ export function LiftSession({
           onDone={toSession}
           onEditExercise={() => setView({ kind: 'form', exerciseId: ex.id })}
         />
+      </Page>
+    )
+  }
+
+  if (view.kind === 'walk') {
+    return (
+      <Page title="Đi bộ dốc" onBack={toSession}>
+        <WalkForm date={date} onDone={toSession} />
       </Page>
     )
   }
@@ -169,7 +186,6 @@ export function LiftSession({
   const unlogged = plan.filter((p) => !lifts.some((e) => e.exerciseId === p.exerciseId))
   const fresh = lifts.length === 0 && plan.length === 0
   const title = mode === 'gym' ? 'Buổi tập tạ' : 'Buổi calisthenic'
-  const label = sessionLabel(lifts.length > 0 ? lifts : plan, exById)
   // Set đã điền mà chưa tick, nằm trong nháp — vẫn đủ để bấm hoàn thành.
   const pendingSets = Object.values(drafts)
     .filter((d) => d.date === date && inMode(d.exerciseId))
@@ -178,22 +194,40 @@ export function LiftSession({
       return sum + (ex ? pendingIndexes(d.rows, isBodyweight(ex)).length : 0)
     }, 0)
   const canFinish = lifts.length > 0 || pendingSets > 0
+  // Đi bộ dốc làm sau phần tạ, nên chỉ mời khi đã có bài. Chưa đi thì đi bộ là việc
+  // kế tiếp (lime), hoàn thành lùi xuống nút trắng; đi rồi thì hoàn thành lại là lime.
+  const walk = mode === 'gym' ? day.walk : undefined
+  const offerWalk = mode === 'gym' && canFinish && !walk
 
   return (
     <Page
       title={date === dateKey() ? title : `${title} · ${dayLabel(date)}`}
       onBack={onClose}
       footer={
-        canFinish && (
-          // Popup hoàn thành đang mở thì nút này tắt hẳn: nền đã mờ mà nút lime vẫn
-          // sáng trông như còn bấm được.
-          <button
-            className="btn primary full"
-            disabled={finishing}
-            onClick={() => setFinishing(true)}
-          >
-            Hoàn thành buổi tập
-          </button>
+        (restBar || canFinish) && (
+          <>
+            {restBar}
+            {offerWalk && (
+              <button
+                className="btn primary full"
+                disabled={finishing}
+                onClick={() => setView({ kind: 'walk' })}
+              >
+                Đi bộ dốc
+              </button>
+            )}
+            {canFinish && (
+              // Popup hoàn thành đang mở thì nút này tắt hẳn: nền đã mờ mà nút lime vẫn
+              // sáng trông như còn bấm được.
+              <button
+                className={`btn full ${offerWalk ? 'light' : 'primary'}`}
+                disabled={finishing}
+                onClick={() => setFinishing(true)}
+              >
+                Hoàn thành buổi tập
+              </button>
+            )}
+          </>
         )
       }
     >
@@ -201,11 +235,6 @@ export function LiftSession({
 
       {lifts.length > 0 && (
         <div className="card ink">
-          {label && (
-            <h2 className="h2" style={{ marginBottom: 10 }}>
-              {label}
-            </h2>
-          )}
           <div className="grid4" style={{ textAlign: 'center' }}>
             <Stat label="bài" value={n(total.exercises)} />
             <Stat label="set" value={n(total.sets)} />
@@ -215,7 +244,7 @@ export function LiftSession({
         </div>
       )}
 
-      {rows.length > 0 && (
+      {(rows.length > 0 || walk) && (
         <div className="list">
           {rows.map(({ ex, entry, planned }) => {
             const hasDraft = Boolean(drafts[`${date}|${ex.id}`])
@@ -255,6 +284,22 @@ export function LiftSession({
               </button>
             )
           })}
+          {walk && (
+            <button className="list-item walk-item" onClick={() => setView({ kind: 'walk' })}>
+              <span className="grow">
+                <span className="row" style={{ gap: 6 }}>
+                  <IconWalk className="ico walk-ico" />
+                  <span className="truncate lift-name">Đi bộ dốc</span>
+                </span>
+                <span className="dim num">{walkLabel(walk)}</span>
+              </span>
+              <span className="entry-kcal">
+                +{n(walk.burnKcal)}
+                <br />
+                <span className="dim">kcal</span>
+              </span>
+            </button>
+          )}
         </div>
       )}
 
@@ -285,10 +330,6 @@ export function LiftSession({
         </button>
       )}
 
-      <p className="muted" style={{ margin: 0 }}>
-        {LIFT_KCAL_NOTE}
-      </p>
-
       {(lifts.length > 0 || plan.length > 0) && (
         <button
           className="btn danger full"
@@ -296,6 +337,8 @@ export function LiftSession({
             const ids = [...lifts.map((e) => e.exerciseId), ...plan.map((p) => p.exerciseId)]
             clearWorkout(date, ids, mode)
             clearDrafts(date, ids)
+            if (walk) setWalk(date, undefined)
+            clearRest()
             onClose()
           }}
         >
@@ -592,6 +635,14 @@ const hasUnsaved = (rows: DraftRow[]) =>
       !r.done && (r.kg.trim() !== '' || r.reps.trim() !== '' || r.drops.length > 0),
   )
 
+/**
+ * Bảng nhập set. Set đang tập mở thành thẻ lớn — kg và rep mỗi ô một dòng, nút
+ * ± vuông đủ cho ngón cái — còn các set khác gọn một dòng "47,5 kg × 12", chạm
+ * để mở sửa. Tick xong thì thẻ nhảy sang set kế và đồng hồ nghỉ chạy.
+ *
+ * Thẻ dựng dọc chứ không xếp hai cụm − số + trên một hàng: màn hẹp (máy bật chữ
+ * to / phóng màn hình chỉ còn ~280px) từng bóp ô số bằng nút ±, cắt "47,5" thành "47,".
+ */
 function SetEditor({
   ex,
   date,
@@ -624,17 +675,19 @@ function SetEditor({
   )
   const rowsRef = useRef(rows)
   const touched = useRef(false)
-  const [tools, setTools] = useState<number | null>(null)
+  // null = tự theo set đầu tiên chưa tick, -1 = gập hết, số = set người dùng chạm vào
+  const [pick, setPick] = useState<number | null>(null)
   const [ask, setAsk] = useState(false)
   const [hint, setHint] = useState<string | null>(null)
-  const swipe = useSetSwipe({ onClaim: () => setTools(null) })
+  const swipe = useSetSwipe({ onClaim: () => {} })
   const sort = useSetDrag({
-    onLift: () => {
-      setTools(null)
-      swipe.close()
+    onLift: () => swipe.close(),
+    onMove: (from, to) => {
+      change((prev) => moveRow(prev, from, to))
+      setPick(null)
     },
-    onMove: (from, to) => change((prev) => moveRow(prev, from, to)),
   })
+  const focus = focusIndex(rows, pick)
   const dragStyle = (i: number) => {
     const offset = sort.offsetOf(i)
     return offset === undefined ? undefined : { transform: `translateY(${offset}px)` }
@@ -690,7 +743,7 @@ function SetEditor({
       ),
     )
 
-  const addDrop = (i: number) => {
+  const addDrop = (i: number) =>
     change((prev) =>
       prev.map((r, k) => {
         if (k !== i) return r
@@ -699,7 +752,15 @@ function SetEditor({
         return { ...r, drops: [...r.drops, { kg: kg > 0 ? kgInput(kg) : '', reps: src.reps }] }
       }),
     )
-    setTools(null)
+
+  const removeDrop = (i: number, j: number) =>
+    change((prev) =>
+      prev.map((r, k) => (k === i ? { ...r, drops: r.drops.filter((_, m) => m !== j) } : r)),
+    )
+
+  const removeRow = (i: number) => {
+    change((prev) => prev.filter((_, k) => k !== i))
+    setPick(null)
   }
 
   const toggleDone = (i: number) => {
@@ -710,9 +771,17 @@ function SetEditor({
           ? `Set ${i + 1}: điền số rep trước khi tick.`
           : `Set ${i + 1}: điền mức tạ và số rep trước khi tick.`,
       )
+      // mở thẻ set đó ra — ô còn thiếu nằm ngay trước mắt
+      setPick(i)
       return
     }
     patchRow(i, { done: !r.done })
+    if (r.done) return
+    // Tick xong: thẻ nhảy sang set kế, đồng hồ nghỉ chạy. Mở khoá âm thanh ngay
+    // trong lần chạm này — iPhone chỉ cho phát tiếng từ cử chỉ của người dùng.
+    setPick(null)
+    primeAudio()
+    startRest(ex.id, restSecFor(data, ex.id))
   }
 
   const sets = rows.map(rowToSet).filter((s) => isValidSet(s, body))
@@ -733,6 +802,148 @@ function SetEditor({
     finish()
   }
 
+  const kgUnit = body ? 'kg thêm' : ex.perSide ? 'kg/bên' : 'kg'
+  const repUnit = ex.unilateral ? 'rep/bên' : 'rep'
+  /** Bài thể trọng không đeo thêm gì thì đọc "tay không" thay cho "0 kg thêm". */
+  const kgText = (kg: string) => {
+    const t = kg.trim()
+    if (body) return t === '' || parseKg(t) === 0 ? ['tay không', ''] : [`+${t}`, 'kg']
+    return [t || '—', kgUnit]
+  }
+
+  /** Set không mở: một dòng tóm tắt. Lúc đang bị nhấc lên kéo, dòng này cũng là hình được kéo. */
+  const line = (r: DraftRow, i: number) => {
+    const [kgVal, kgU] = kgText(r.kg)
+    const drops = r.drops.filter((d) => d.kg.trim() !== '' || d.reps.trim() !== '')
+    return (
+      <div className="set-line">
+        <button
+          className="set-num num"
+          aria-label={`Set ${i + 1}: chạm để sửa, giữ rồi kéo để đổi thứ tự, lướt trái để xoá`}
+          {...sort.indexProps(i)}
+          onClick={() => {
+            if (sort.takeClick()) setPick(i)
+          }}
+        >
+          {i + 1}
+        </button>
+        <button className="set-sum" aria-label={`Sửa set ${i + 1}`} onClick={() => setPick(i)}>
+          <span className="set-main num">
+            <span className="set-val">
+              {kgVal}
+              {kgU && <small>{kgU}</small>}
+            </span>
+            <span className="set-x">×</span>
+            <span className="set-val">
+              {r.reps.trim() || '—'}
+              <small>{repUnit}</small>
+            </span>
+          </span>
+          {drops.length > 0 && (
+            <span className="set-drops num">
+              <IconArrowDown className="ico" />
+              {drops.map((d) => `${d.kg.trim() || '—'}×${d.reps.trim() || '—'}`).join('  ·  ')}
+            </span>
+          )}
+        </button>
+        <button
+          className="set-check"
+          aria-pressed={r.done}
+          aria-label={r.done ? `Bỏ tick set ${i + 1}` : `Tick set ${i + 1} là đã xong`}
+          onClick={() => toggleDone(i)}
+        >
+          <IconCheck className="ico" />
+        </button>
+      </div>
+    )
+  }
+
+  /** Set đang mở: thẻ lớn. */
+  const card = (r: DraftRow, i: number) => (
+    <div className="set-card">
+      <div className="set-card-head">
+        <button
+          className="set-num num"
+          aria-label={`Set ${i + 1}: chạm để thu gọn, giữ rồi kéo để đổi thứ tự`}
+          {...sort.indexProps(i)}
+          onClick={() => {
+            if (sort.takeClick()) setPick(-1)
+          }}
+        >
+          {i + 1}
+        </button>
+        <span className="set-card-title">
+          Set {i + 1}
+          <span>{r.done ? 'đã xong' : 'đang tập'}</span>
+        </span>
+        <button className="btn sm" onClick={() => addDrop(i)}>
+          <IconArrowDown className="ico drop-ico" />
+          Drop
+        </button>
+      </div>
+      <Stepper
+        size="lg"
+        value={r.kg}
+        step={step}
+        unit={kgUnit}
+        label={`mức tạ set ${i + 1}`}
+        onChange={(v) => editField(i, 'kg', v)}
+      />
+      <Stepper
+        size="lg"
+        value={r.reps}
+        step={1}
+        integer
+        unit={repUnit}
+        label={`rep set ${i + 1}`}
+        onChange={(v) => editField(i, 'reps', v)}
+      />
+      {r.drops.map((d, j) => (
+        <div key={j} className="drop-line">
+          <IconArrowDown className="ico drop-arrow" />
+          <label className="drop-field">
+            <input
+              inputMode="decimal"
+              placeholder="0"
+              aria-label={`mức tạ nấc drop ${j + 1} của set ${i + 1}`}
+              value={d.kg}
+              onChange={(e) => patchDrop(i, j, { kg: e.target.value })}
+            />
+            <span>{ex.perSide ? 'kg/bên' : 'kg'}</span>
+          </label>
+          <span className="drop-x">×</span>
+          <label className="drop-field">
+            <input
+              inputMode="numeric"
+              placeholder="0"
+              aria-label={`rep nấc drop ${j + 1} của set ${i + 1}`}
+              value={d.reps}
+              onChange={(e) => patchDrop(i, j, { reps: e.target.value })}
+            />
+            <span>rep</span>
+          </label>
+          <button
+            className="drop-del"
+            aria-label={`Xoá nấc drop ${j + 1} của set ${i + 1}`}
+            onClick={() => removeDrop(i, j)}
+          >
+            <IconX className="ico" />
+          </button>
+        </div>
+      ))}
+      <button className={`btn full${r.done ? '' : ' primary'}`} onClick={() => toggleDone(i)}>
+        {r.done ? (
+          'Bỏ tick set này'
+        ) : (
+          <>
+            <IconCheck className="ico" />
+            Xong set {i + 1}
+          </>
+        )}
+      </button>
+    </div>
+  )
+
   return (
     <>
       <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
@@ -742,120 +953,38 @@ function SetEditor({
       </div>
 
       <div className="set-list" data-dragging={sort.drag ? true : undefined}>
-        <div className="set-row">
-          <span />
-          <span className="set-head">
-            {body ? 'Tải thêm (kg)' : `Mức tạ (${ex.perSide ? 'mỗi bên' : 'kg'})`}
-          </span>
-          <span className="set-head">{ex.unilateral ? 'Rep / bên' : 'Rep'}</span>
-          <span className="set-head">Xong</span>
-        </div>
-
-        {rows.map((r, i) => (
-          <div
-            key={i}
-            ref={sort.blockRef(i)}
-            className="set-block"
-            data-done={r.done || undefined}
-            data-lifted={sort.drag?.from === i || undefined}
-            style={dragStyle(i)}
-          >
+        {rows.map((r, i) => {
+          const lifted = sort.drag?.from === i
+          return (
             <div
-              className="set-swipe"
-              data-active={swipe.offsetOf(i) !== undefined || undefined}
-              data-open={swipe.isOpen(i) || undefined}
+              key={i}
+              ref={sort.blockRef(i)}
+              className="set-block"
+              data-done={r.done || undefined}
+              data-lifted={lifted || undefined}
+              style={dragStyle(i)}
             >
-              {swipe.offsetOf(i) !== undefined && (
-                <button
-                  className="set-trash"
-                  aria-label={`Xoá set ${i + 1}`}
-                  onClick={() => change((prev) => prev.filter((_, k) => k !== i))}
-                >
-                  <IconTrash className="ico" />
-                </button>
-              )}
-              <div className="set-slide" style={slideStyle(i)} {...swipe.slideProps(i)}>
-                <div className="set-row">
+              <div
+                className="set-swipe"
+                data-active={swipe.offsetOf(i) !== undefined || undefined}
+                data-open={swipe.isOpen(i) || undefined}
+              >
+                {swipe.offsetOf(i) !== undefined && (
                   <button
-                    className="set-index num"
-                    aria-expanded={tools === i}
-                    aria-label={`Set ${i + 1}: chạm để thêm nấc drop, giữ rồi kéo để đổi thứ tự, lướt trái để xoá`}
-                    {...sort.indexProps(i)}
-                    onClick={() => {
-                      if (sort.takeClick()) setTools(tools === i ? null : i)
-                    }}
+                    className="set-trash"
+                    aria-label={`Xoá set ${i + 1}`}
+                    onClick={() => removeRow(i)}
                   >
-                    {i + 1}
+                    <IconTrash className="ico" />
                   </button>
-                  <Stepper
-                    value={r.kg}
-                    step={step}
-                    label={`mức tạ set ${i + 1}`}
-                    onChange={(v) => editField(i, 'kg', v)}
-                  />
-                  <Stepper
-                    value={r.reps}
-                    step={1}
-                    integer
-                    label={`rep set ${i + 1}`}
-                    onChange={(v) => editField(i, 'reps', v)}
-                  />
-                  <button
-                    className="set-tick"
-                    aria-pressed={r.done}
-                    aria-label={r.done ? `Bỏ tick set ${i + 1}` : `Tick set ${i + 1} là đã xong`}
-                    onClick={() => toggleDone(i)}
-                  >
-                    <IconCheck className="ico" />
-                  </button>
+                )}
+                <div className="set-slide" style={slideStyle(i)} {...swipe.slideProps(i)}>
+                  {i === focus && !lifted ? card(r, i) : line(r, i)}
                 </div>
-
-                {r.drops.map((d, j) => (
-                  <div key={j} className="set-row drop">
-                    <span className="drop-mark" aria-hidden="true">
-                      <IconArrowDown className="ico" />
-                    </span>
-                    <Stepper
-                      value={d.kg}
-                      step={step}
-                      label={`mức tạ nấc drop ${j + 1} của set ${i + 1}`}
-                      onChange={(v) => patchDrop(i, j, { kg: v })}
-                    />
-                    <Stepper
-                      value={d.reps}
-                      step={1}
-                      integer
-                      label={`rep nấc drop ${j + 1} của set ${i + 1}`}
-                      onChange={(v) => patchDrop(i, j, { reps: v })}
-                    />
-                    <button
-                      className="set-del"
-                      aria-label={`Xoá nấc drop ${j + 1} của set ${i + 1}`}
-                      onClick={() =>
-                        change((prev) =>
-                          prev.map((row, k) =>
-                            k === i ? { ...row, drops: row.drops.filter((_, m) => m !== j) } : row,
-                          ),
-                        )
-                      }
-                    >
-                      <IconX className="ico" />
-                    </button>
-                  </div>
-                ))}
               </div>
             </div>
-
-            {tools === i && (
-              <div className="set-tools">
-                <button className="btn sm" onClick={() => addDrop(i)}>
-                  <IconArrowDown className="ico drop-ico" />
-                  Thêm nấc drop
-                </button>
-              </div>
-            )}
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {hint && (
@@ -866,7 +995,7 @@ function SetEditor({
 
       <button
         className="btn full"
-        onClick={() =>
+        onClick={() => {
           change((prev) => {
             const tail = prev[prev.length - 1]
             // set mới chép mức tạ và rep của set cuối — hiệp sau thường giữ nguyên
@@ -875,7 +1004,8 @@ function SetEditor({
               { kg: tail?.kg ?? '', reps: tail?.reps ?? '', done: false, drops: [] },
             ]
           })
-        }
+          setPick(null)
+        }}
       >
         + Thêm set
       </button>
@@ -920,7 +1050,7 @@ function SetEditor({
         </div>
       ) : (
         <button
-          className="btn primary full"
+          className="btn full"
           disabled={doneCount === 0 && pending.length === 0}
           onClick={() => {
             if (pending.length === 0) finish()
@@ -930,7 +1060,7 @@ function SetEditor({
         >
           {doneCount === 0
             ? `Lưu${pending.length > 0 ? ` ${pending.length} set` : ''}`
-            : `Xong · ${doneCount} set`}
+            : `Xong bài · ${doneCount} set`}
         </button>
       )}
 

@@ -202,6 +202,44 @@ export function IconPlus({ className }: Props) {
   )
 }
 
+/** Biểu đồ cột — nút chọn kiểu biểu đồ volume. */
+export function IconChartBar({ className }: Props) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M5 20V11M12 20V5M19 20v-6" strokeWidth={2.6} />
+    </svg>
+  )
+}
+
+/** Biểu đồ đường. */
+export function IconChartLine({ className }: Props) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M4 17l5-5 4 3 7-8" />
+      <path d="M4 20h16" />
+    </svg>
+  )
+}
+
+/** Thanh ngang so hai kỳ. */
+export function IconChartCompare({ className }: Props) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M4 6h13M4 10h9M4 15h15M4 19h11" strokeWidth={2.2} />
+    </svg>
+  )
+}
+
+/** Người đi bộ — đi bộ dốc sau buổi tạ. */
+export function IconWalk({ className }: Props) {
+  return (
+    <svg {...base} className={className}>
+      <circle cx="13" cy="4" r="1.2" />
+      <path d="M7 21l3-4M16 21l-2-4-3-3 1-6M6 12l2-3 4-1 3 3 3 1" />
+    </svg>
+  )
+}
+
 /** Mũi tên thẳng xuống — nấc drop set, tụt tạ từ set bên trên. */
 export function IconArrowDown({ className }: Props) {
   return (

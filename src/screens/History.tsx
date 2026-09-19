@@ -31,6 +31,7 @@ function buildStats(dates: string[], data: AppData): DayStat[] {
       runDay: types.includes('run'),
       liftDay: types.includes('lift'),
       runBurnKcal: day.run?.burnKcal,
+      walkBurnKcal: day.walk?.burnKcal,
     }
     const macros = sumEntries(day.entries, (id) => map.get(id))
     return {
@@ -82,6 +83,7 @@ function computeStreak(data: AppData): number {
           runDay: types.includes('run'),
           liftDay: types.includes('lift'),
           runBurnKcal: day.run?.burnKcal,
+          walkBurnKcal: day.walk?.burnKcal,
         }),
       ).length === 0
 

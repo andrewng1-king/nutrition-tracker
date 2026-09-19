@@ -118,14 +118,23 @@ export interface DayAdjust {
   liftDay: boolean
   /** kcal đốt được từ buổi chạy đã log — thay cho con số mặc định của settings */
   runBurnKcal?: number
+  /**
+   * kcal net của buổi đi bộ dốc đã log. Không nằm trong `gymBurnKcal` (số đó chỉ
+   * là phần nâng tạ) nên cộng riêng, và cộng cả khi ngày không mang nhãn nào.
+   */
+  walkBurnKcal?: number
 }
 
 /** Chi tiết phần calo cộng/trừ, để màn hình giải thích được từng khoản. */
 export interface KcalAdjust {
   run: number
   gym: number
+  walk: number
   total: number
 }
+
+/** Trần kcal một buổi đi bộ dốc được cộng — gõ nhầm 300 phút không thổi target lên. */
+export const WALK_KCAL_CAP = 600
 
 export function computeAdjust(settings: Settings, day: DayAdjust): KcalAdjust {
   const raw = day.runBurnKcal ?? settings.runDayExtraKcal
@@ -133,7 +142,8 @@ export function computeAdjust(settings: Settings, day: DayAdjust): KcalAdjust {
   const run = day.runDay ? Math.max(0, Math.min(raw, 900)) : 0
   const baseline = gymBaselineKcal(settings)
   const gym = Math.round(day.liftDay ? settings.gymBurnKcal - baseline : -baseline)
-  return { run, gym, total: run + gym }
+  const walk = Math.max(0, Math.min(day.walkBurnKcal ?? 0, WALK_KCAL_CAP))
+  return { run, gym, walk, total: run + gym + walk }
 }
 
 /**

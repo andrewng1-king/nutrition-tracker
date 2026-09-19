@@ -34,6 +34,7 @@ export function dayView(data: AppData, date: string): DayView {
       runDay,
       liftDay,
       runBurnKcal: day.run?.burnKcal,
+      walkBurnKcal: day.walk?.burnKcal,
     }),
     totals: sumEntries(day.entries, (id) => map.get(id)),
     cost: day.entries.reduce((sum, e) => sum + (e.cost ?? 0), 0),
