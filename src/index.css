@@ -84,6 +84,11 @@ body {
   padding: 0;
   height: 100%;
   overscroll-behavior-y: none;
+  /* Không có gì trong app rộng hơn màn hình, nên mọi lần trang trượt ngang đều là
+     lỗi (vuốt chéo, ô input không chịu co, thẻ phóng to lúc chuyển trang). Khoá
+     luôn trục ngang: `clip` cho trình duyệt mới, `hidden` cho bản cũ. */
+  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 body {
@@ -115,6 +120,9 @@ textarea {
   border-radius: 12px;
   padding: 11px 13px;
   width: 100%;
+  /* Safari giữ bề rộng tối thiểu theo thuộc tính `size` của ô input: nằm trong
+     flex là ô không chịu co, đẩy cả hàng rộng hơn màn. */
+  min-width: 0;
   /* iOS zoom vào input nếu font < 16px */
   font-size: 16px;
 }
@@ -1069,18 +1077,27 @@ input[type='number']::-webkit-inner-spin-button {
 /* ---------- thẻ ảnh nhóm cơ ---------- */
 
 /* Hàng thẻ cuộn ngang, tràn sát mép trang (bù đúng --pad của .page-body).
-   padding dọc chừa chỗ cho thẻ đang chọn phóng to khỏi bị cắt. */
+   `overflow-x: auto` kéo theo `overflow-y: auto`, nên hàng này xén mọi thứ vẽ ra
+   ngoài hộp: thẻ đang chọn phóng to 1.14 (cao thêm 5,6px mỗi đầu) cộng vòng sáng
+   3px cần 8,6px chừa trên dưới — thiếu là viền xanh của thẻ bị cắt cụt. */
 .grouprail {
   display: flex;
   gap: 10px;
   overflow-x: auto;
   scrollbar-width: none;
   margin: 0 calc(-1 * var(--pad));
-  padding: 6px var(--pad);
+  padding: 10px var(--pad);
 }
 
 .grouprail::-webkit-scrollbar {
   display: none;
+}
+
+/* Safari bỏ qua padding cuối của vùng cuộn ngang: cuộn tới thẻ cuối thì phần
+   phóng to của nó chạm mép và bị xén. Ô trống cuối hàng giữ chỗ đó chắc chắn. */
+.grouprail::after {
+  content: '';
+  flex: 0 0 1px;
 }
 
 .group-card {
@@ -2134,12 +2151,21 @@ input[type='number']::-webkit-inner-spin-button {
 .ex-open {
   display: flex;
   align-items: center;
-  gap: 11px;
   flex: 1;
   min-width: 0;
   text-align: left;
   padding: 12px 0;
   min-height: var(--tap);
+}
+
+/* Nhóm cơ mở đầu dòng phụ, in hoa và sáng hơn phần còn lại một bậc: lướt danh
+   sách vẫn gom được theo nhóm mà không cần chấm màu chiếm chỗ ở đầu dòng. */
+.ex-group {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
 }
 
 /* Con số % bên phải mỗi bài: không khung, chỉ số — bấm vào mở biểu đồ tiến bộ.
@@ -2786,6 +2812,7 @@ input[type='number']::-webkit-inner-spin-button {
   max-width: 340px;
   max-height: calc(100dvh - 2 * var(--pad));
   overflow-y: auto;
+  overflow-x: hidden;
   overscroll-behavior: contain;
   background: var(--surface);
   border: 1px solid var(--line);
@@ -2862,6 +2889,8 @@ input[type='number']::-webkit-inner-spin-button {
 
 .sheet-body {
   overflow-y: auto;
+  /* xem .page-body: khoá trục ngang cho khỏi trượt chéo */
+  overflow-x: hidden;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   padding: 14px var(--pad) 20px;
@@ -2946,6 +2975,10 @@ input[type='number']::-webkit-inner-spin-button {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* `overflow-y: auto` một mình biến trục ngang thành `auto` theo: vuốt chéo
+     trên iOS là cả trang trượt ngang vài chục px rồi đứng im ở đó. Khoá trục
+     ngang lại, nội dung vốn đã vừa bề ngang. */
+  overflow-x: hidden;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   padding: 14px var(--pad) 24px;
@@ -2980,10 +3013,11 @@ input[type='number']::-webkit-inner-spin-button {
   }
 }
 
-/* Hàng chip nhóm phụ: thụt vào dưới hàng nhóm chính, vạch màu nhóm bên trái */
+/* Hàng chip nhóm phụ: thụt vào cho thấy nó thuộc nhóm vừa chọn. Trước đây có
+   thêm vạch lime bên trái, nhưng khi hàng chip xuống dòng thì vạch kéo dài thành
+   một sợi lơ lửng ở mép trang, trông như lỗi hiển thị hơn là đường nối. */
 .sub-chips {
-  border-left: 2px solid var(--lime);
-  padding-left: 10px;
+  padding-left: 12px;
 }
 
 .sub-chips .chip {

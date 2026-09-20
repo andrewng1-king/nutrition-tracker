@@ -3,7 +3,7 @@ import { matchName, shortDate } from '../lib/format'
 import { useData, usePref } from '../lib/hooks'
 import { GEAR_LABELS, lastChange, lastSetsFor, setLabel } from '../lib/lift'
 import { dateKey } from '../lib/macros'
-import { GROUP_COLOR, LIFT_GROUPS, LIFT_GROUP_LABELS } from '../lib/muscles'
+import { LIFT_GROUPS, LIFT_GROUP_LABELS } from '../lib/muscles'
 import { allExercises } from '../lib/storage'
 import type { Exercise, LiftMode } from '../lib/types'
 import { Delta } from './Delta'
@@ -87,17 +87,13 @@ export function ExerciseList({
             return (
               <div key={ex.id} className="list-item ex-row">
                 <button className="ex-open" onClick={() => onOpen(ex)}>
-                  <i
-                    className="swatch"
-                    style={{ background: GROUP_COLOR[ex.group] }}
-                    aria-hidden="true"
-                  />
                   <span className="grow">
                     <span className="truncate lift-name" style={{ display: 'block' }}>
                       {ex.name}
                     </span>
                     <span className="dim num truncate" style={{ display: 'block' }}>
-                      {LIFT_GROUP_LABELS[ex.group]} · {GEAR_LABELS[ex.gear]}
+                      <span className="ex-group">{LIFT_GROUP_LABELS[ex.group]}</span> ·{' '}
+                      {GEAR_LABELS[ex.gear]}
                       {top
                         ? ` · lần cuối ${setLabel(ex, top)} (${shortDate(last!.date)})`
                         : ' · chưa tập lần nào'}
