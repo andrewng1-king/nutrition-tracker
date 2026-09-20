@@ -3,13 +3,13 @@ import { ExerciseForm } from '../components/ExerciseForm'
 import { ExerciseList } from '../components/ExerciseList'
 import { IconCheck, IconChevron } from '../components/icons'
 import { LiftSession } from '../components/LiftSession'
+import { ModeCards } from '../components/ModeCards'
 import { Page } from '../components/Page'
 import { ProgressSheet } from '../components/ProgressSheet'
 import { RunProgress } from '../components/RunProgress'
 import { SessionReview } from '../components/SessionReview'
 import { Sheet } from '../components/Sheet'
 import { Strength } from '../components/Strength'
-import { SubTabs } from '../components/SubTabs'
 import type { LiftDraft } from '../lib/draft'
 import { dayLabel, n } from '../lib/format'
 import { useData } from '../lib/hooks'
@@ -20,12 +20,6 @@ import { allExercises, exerciseMap, getDay, setLiftDone } from '../lib/storage'
 import type { Exercise, LiftMode } from '../lib/types'
 
 type Sub = LiftMode | 'run'
-
-const SUBS: [Sub, string][] = [
-  ['gym', 'Gym'],
-  ['calisthenic', 'Calisthenic'],
-  ['run', 'Run'],
-]
 
 export function Training({
   onOpenDay,
@@ -46,7 +40,7 @@ export function Training({
   return (
     <div className="screen">
       <h1 className="h1">Bài tập</h1>
-      <SubTabs tabs={SUBS} active={sub} onSelect={setSub} label="Loại bài tập" />
+      <ModeCards active={sub} onSelect={setSub} />
       {sub === 'run' ? (
         <RunProgress onOpenDay={onOpenDay} />
       ) : (

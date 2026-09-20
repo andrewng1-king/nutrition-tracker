@@ -1066,6 +1066,197 @@ input[type='number']::-webkit-inner-spin-button {
   font-weight: 700;
 }
 
+/* ---------- thẻ ảnh nhóm cơ ---------- */
+
+/* Hàng thẻ cuộn ngang, tràn sát mép trang (bù đúng --pad của .page-body).
+   padding dọc chừa chỗ cho thẻ đang chọn phóng to khỏi bị cắt. */
+.grouprail {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 0 calc(-1 * var(--pad));
+  padding: 6px var(--pad);
+}
+
+.grouprail::-webkit-scrollbar {
+  display: none;
+}
+
+.group-card {
+  position: relative;
+  flex: 0 0 auto;
+  width: 64px;
+  aspect-ratio: 4 / 5;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  /* phóng to bằng transform chứ không đổi width: không làm cả hàng dồn lại
+     mỗi lần đổi nhóm. 1.14 vừa lọt khe 10px nên không đè lên thẻ bên cạnh. */
+  transition: transform 0.18s ease, border-color 0.18s ease;
+}
+
+.group-card[aria-pressed='true'] {
+  transform: scale(1.14);
+  border-color: rgba(200, 255, 77, 0.6);
+  box-shadow: 0 0 0 3px rgba(200, 255, 77, 0.12);
+}
+
+.group-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* nhóm chưa chọn để trắng đen, chọn rồi mới lên màu */
+  filter: grayscale(1) brightness(0.5);
+  transition: filter 0.18s ease;
+}
+
+.group-card[aria-pressed='true'] .group-photo {
+  filter: none;
+}
+
+.group-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(4, 6, 4, 0.95) 8%, rgba(4, 6, 4, 0.15) 70%);
+}
+
+.group-cap {
+  position: absolute;
+  left: 6px;
+  right: 4px;
+  bottom: 5px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.1;
+  text-align: left;
+}
+
+.group-card[aria-pressed='true'] .group-cap {
+  color: var(--lime);
+  font-weight: 700;
+}
+
+/* "Tất cả" không có ảnh — ô nền tối kèm icon tạ cho khỏi trống trơn. */
+.group-all {
+  display: grid;
+  place-items: center;
+  background: var(--surface-2);
+}
+
+.group-all .ico {
+  width: 22px;
+  height: 22px;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+.group-all[aria-pressed='true'] .ico {
+  color: var(--lime);
+}
+
+/* ---------- thẻ chọn loại bài tập ---------- */
+
+/* Mode đang xem là thẻ lớn có ảnh; hai mode kia là ô nhỏ xếp dọc bên phải.
+   Tỉ lệ 1.55fr/1fr giữ được thẻ lớn đọc được cả ở máy hẹp ~280px. */
+.modecards {
+  display: grid;
+  grid-template-columns: 1.55fr 1fr;
+  gap: 8px;
+}
+
+.mode-hero,
+.mode-small {
+  position: relative;
+  overflow: hidden;
+  display: block;
+  text-align: left;
+  border: 1px solid var(--line);
+}
+
+.mode-hero {
+  aspect-ratio: 3 / 4;
+  border-radius: var(--r);
+  border-color: rgba(200, 255, 77, 0.4);
+  box-shadow: 0 10px 34px rgba(143, 224, 0, 0.12);
+}
+
+.mode-side {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  gap: 8px;
+}
+
+.mode-small {
+  border-radius: var(--r-sm);
+}
+
+.mode-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Ô chưa chọn để xám + tối, ô đang chọn giữ màu — nhìn là biết đang ở mode nào. */
+.mode-small .mode-photo {
+  filter: grayscale(1) brightness(0.45);
+}
+
+/* Chữ trên ảnh phải luôn đọc được: phủ tối dần từ đáy lên. */
+.mode-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgba(4, 6, 4, 0.92) 0%,
+    rgba(4, 6, 4, 0.45) 45%,
+    rgba(4, 6, 4, 0.1) 100%
+  );
+}
+
+.mode-hero-txt {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 11px;
+}
+
+.mode-kicker {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--lime);
+}
+
+.mode-name {
+  display: block;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-top: 2px;
+}
+
+.mode-meta {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+.mode-small-txt {
+  position: absolute;
+  left: 8px;
+  bottom: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 /* ---------- sub-tabs & day type ---------- */
 
 /* Hàng sub-tab dưới tiêu đề màn hình. Nhiều mục thì cuộn ngang chứ không xuống dòng. */
