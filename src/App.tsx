@@ -1,6 +1,6 @@
 import { useCallback, useState, type ComponentType } from 'react'
 import { DevTools } from './components/DevTools'
-import { IconCloud, IconLift, IconProfile, IconSettings, IconToday } from './components/icons'
+import { IconChartLine, IconCloud, IconLift, IconSettings, IconToday } from './components/icons'
 import { Popup } from './components/Popup'
 import { BOOT_AT, clearDraftsBefore, draftsBefore, type LiftDraft } from './lib/draft'
 import { dayLabel, n } from './lib/format'
@@ -8,18 +8,19 @@ import { useDrafts, useSync } from './lib/hooks'
 import { dateKey } from './lib/macros'
 import { downloadBackup } from './lib/storage'
 import { resolveFirstSync } from './lib/sync'
-import { Profile } from './screens/Profile'
-import { Settings } from './screens/Settings'
+import { More, Progress } from './screens/Profile'
 import { Today } from './screens/Today'
 import { Training } from './screens/Training'
+import { RestController } from './components/RestBar'
+import { StorageNotice } from './components/StorageNotice'
 
 type Tab = 'today' | 'training' | 'profile' | 'settings'
 
 const TABS: [Tab, ComponentType<{ className?: string }>, string][] = [
   ['today', IconToday, 'Hôm nay'],
   ['training', IconLift, 'Bài tập'],
-  ['profile', IconProfile, 'Profile'],
-  ['settings', IconSettings, 'Cài đặt'],
+  ['profile', IconChartLine, 'Tiến bộ'],
+  ['settings', IconSettings, 'Thêm'],
 ]
 
 export default function App() {
@@ -41,20 +42,22 @@ export default function App() {
 
   return (
     <div className="app">
+      <RestController />
+      <StorageNotice />
       {tab === 'today' && <Today date={date} setDate={setDate} />}
       {tab === 'training' && (
         <Training onOpenDay={openDay} resume={resume} onResumed={clearResume} />
       )}
-      {tab === 'profile' && <Profile onOpenDay={openDay} />}
-      {tab === 'settings' && <Settings />}
+      {tab === 'profile' && <Progress onOpenDay={openDay} />}
+      {tab === 'settings' && <More onOpenDay={openDay} />}
 
-      <DevTools
+      {import.meta.env.DEV && <DevTools
         onSeeded={() => {
           // Dữ liệu mẫu đổ vào 7 ngày gần nhất — kéo màn hình về hôm nay để thấy ngay.
           setDate(dateKey())
           setTab('today')
         }}
-      />
+      />}
 
       <nav className="tabbar">
         {TABS.map(([key, Icon, label]) => (

@@ -180,7 +180,7 @@ export function groupVolumes(
 ): GroupVolume[] {
   const byGroup = new Map<LiftGroup, { volume: number; sets: number; subs: Map<SubKey, number> }>()
   for (const e of entries) {
-    const ex = exById.get(e.exerciseId)
+    const ex = e.exercise ?? exById.get(e.exerciseId)
     if (!ex) continue
     const v = volumeOf(ex, e)
     const g = byGroup.get(ex.group) ?? { volume: 0, sets: 0, subs: new Map() }
@@ -202,10 +202,10 @@ export function groupVolumes(
 }
 
 /** Nhóm cơ có mặt trong buổi, nhiều set nhất trước. */
-export function sessionGroups(entries: { exerciseId: string; sets: unknown[] }[], exById: Map<string, Exercise>): LiftGroup[] {
+export function sessionGroups(entries: { exerciseId: string; sets: unknown[]; exercise?: Exercise }[], exById: Map<string, Exercise>): LiftGroup[] {
   const sets = new Map<LiftGroup, number>()
   for (const e of entries) {
-    const ex = exById.get(e.exerciseId)
+    const ex = e.exercise ?? exById.get(e.exerciseId)
     if (ex) sets.set(ex.group, (sets.get(ex.group) ?? 0) + Math.max(1, e.sets.length))
   }
   return [...sets.entries()]
@@ -215,7 +215,7 @@ export function sessionGroups(entries: { exerciseId: string; sets: unknown[] }[]
 
 /** "Ngực · Tay sau", nhiều hơn hai nhóm thì "Ngực · Tay sau +1". Buổi trống ra "". */
 export function sessionLabel(
-  entries: { exerciseId: string; sets: unknown[] }[],
+  entries: { exerciseId: string; sets: unknown[]; exercise?: Exercise }[],
   exById: Map<string, Exercise>,
 ): string {
   const groups = sessionGroups(entries, exById)

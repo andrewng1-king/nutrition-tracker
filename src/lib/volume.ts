@@ -1,6 +1,7 @@
 import { shiftDate, weekday } from './format'
 import { entryVolume, liftDates } from './lift'
 import { dateKey, parseDateKey } from './macros'
+import { historicalWeight } from './historyWeight'
 import { LIFT_GROUPS, splitBySub, type SubKey } from './muscles'
 import type { AppData, Exercise, LiftGroup, LiftMode } from './types'
 
@@ -45,9 +46,9 @@ function addDay(
 ) {
   let counted = false
   for (const e of data.days[date]?.lifts ?? []) {
-    const ex = exById.get(e.exerciseId)
+    const ex = e.exercise ?? exById.get(e.exerciseId)
     if (!ex || ex.mode !== opts.mode) continue
-    const v = entryVolume(ex, e, opts.bodyKg)
+    const v = entryVolume(ex, e, historicalWeight(data, date, opts.bodyKg))
     acc.byGroup[ex.group] += v
     acc.total += v
     for (const [key, part] of splitBySub(ex, v)) acc.bySub[key] = (acc.bySub[key] ?? 0) + part

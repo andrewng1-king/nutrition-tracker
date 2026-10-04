@@ -3,7 +3,8 @@ import { EntrySheet } from '../components/EntrySheet'
 import { ExpenseGauge } from '../components/ExpenseGauge'
 import { LogSheet } from '../components/LogSheet'
 import { NoticeSheet } from '../components/NoticeSheet'
-import { MacroRings } from '../components/Ring'
+import { LiftSession } from '../components/LiftSession'
+import { SessionReview } from '../components/SessionReview'
 import { RunSheet } from '../components/RunSheet'
 import { ScanSheet } from '../components/ScanSheet'
 import { Sheet } from '../components/Sheet'
@@ -25,13 +26,13 @@ import {
 } from '../lib/format'
 import { dayView } from '../lib/day'
 import { useData } from '../lib/hooks'
-import { entryVolume, shortSet, summarize, volumeShort } from '../lib/lift'
+import { entryVolume, isSessionLocked, shortSet, summarize, volumeShort } from '../lib/lift'
 import { computeAdjust, dateKey, evaluate, macrosFor, sumEntries } from '../lib/macros'
 import { sessionLabel } from '../lib/muscles'
 import { formatDuration, formatPace, paceSecPerKm } from '../lib/run'
 import { buildNotice, type NoticeKey } from '../lib/status'
-import { allFoods, exerciseMap, foodMap, saveTemplate, setTurbo } from '../lib/storage'
-import type { Entry, Exercise, Food, LiftEntry, Macros, MealSlot } from '../lib/types'
+import { allFoods, exerciseMap, foodMap, saveTemplate, setLiftDone, setTurbo } from '../lib/storage'
+import type { Entry, Exercise, Food, LiftEntry, LiftMode, Macros, MealSlot } from '../lib/types'
 import { walkLabel } from '../lib/walk'
 import { weekSummary } from '../lib/week'
 
@@ -49,6 +50,7 @@ export function Today({ date, setDate }: { date: string; setDate: (d: string) =>
   const [scanning, setScanning] = useState(false)
   const [running, setRunning] = useState(false)
   const [noticeKey, setNoticeKey] = useState<NoticeKey | null>(null)
+  const [workout, setWorkout] = useState<{ mode: LiftMode; review: boolean } | null>(null)
 
   const { day, runDay, liftDay, targets, totals, cost } = dayView(data, date)
   const exById = useMemo(() => exerciseMap(data), [data])
@@ -56,8 +58,8 @@ export function Today({ date, setDate }: { date: string; setDate: (d: string) =>
   // Turbo = ngày chạy có kèm buổi thể trọng. Ngày Turbo không xếp thêm buổi tạ
   // phòng gym, nên "tạ" và "calisthenic" không bao giờ cùng bật.
   const turbo = runDay && Boolean(day.turbo)
-  const gymLifts = lifts.filter((e) => exById.get(e.exerciseId)?.mode === 'gym')
-  const calLifts = lifts.filter((e) => exById.get(e.exerciseId)?.mode === 'calisthenic')
+  const gymLifts = lifts.filter((e) => (e.exercise ?? exById.get(e.exerciseId))?.mode === 'gym')
+  const calLifts = lifts.filter((e) => (e.exercise ?? exById.get(e.exerciseId))?.mode === 'calisthenic')
   const gymLabel = sessionLabel(gymLifts, exById)
   const warnings = evaluate(totals, targets)
   const week = weekSummary(data, date)
@@ -72,7 +74,6 @@ export function Today({ date, setDate }: { date: string; setDate: (d: string) =>
     .slice(0, 8)
     .map(([id]) => id)
 
-  const alerts = new Set<NoticeKey>(warnings.map((w) => w.key))
   const activeWarning = warnings.find((w) => w.key === noticeKey)
   const notice = activeWarning
     ? buildNotice(activeWarning, totals, targets, foods, recentIds)
@@ -188,9 +189,16 @@ export function Today({ date, setDate }: { date: string; setDate: (d: string) =>
     },
   ]
   const orderedSessions = [...sessions].sort((a, b) => Number(b.active) - Number(a.active))
+  const workoutMode: LiftMode = turbo ? 'calisthenic' : 'gym'
+  const workoutEntries = turbo ? calLifts : gymLifts
+  const runOnly = runDay && !liftDay && !turbo
+  const openWorkout = () => {
+    if (runOnly) { setRunning(true); return }
+    setWorkout({ mode: workoutMode, review: isSessionLocked(day, workoutMode, exById, dateKey()) })
+  }
 
   return (
-    <div className="screen">
+    <div className="screen today-screen">
       <header className="col today-head" style={{ gap: 12 }}>
         <div className="between">
           <h1 className="display">
@@ -227,14 +235,25 @@ export function Today({ date, setDate }: { date: string; setDate: (d: string) =>
         )}
       </header>
 
-      <div className={`card ink${turbo ? ' card-turbo' : ''}`}>
-        <MacroRings
-          macros={totals}
-          targets={targets}
-          alerts={alerts}
-          onOpenNotice={setNoticeKey}
-          badge={
-            runDay ? (
+      <div className="today-overview">
+        <section className="card">
+          <span className="dim">Dinh dưỡng</span>
+          <div className="overview-value num">{n(totals.kcal)} <small>kcal</small></div>
+          <span className="muted">{totals.kcal > targets.kcalMax ? `Vượt ${n(totals.kcal - targets.kcalMax)}` : `Còn ${n(targets.kcalMax - totals.kcal)}`} kcal</span>
+        </section>
+        <section className="card">
+          <span className="dim">Buổi tập</span>
+          <h2 className="overview-workout">{runOnly ? 'Chạy bộ' : turbo ? 'Calisthenic' : gymLabel || 'Gym'}</h2>
+          <span className="muted">{runOnly ? day.run ? `${n(day.run.distanceKm, 2)} km` : 'Chưa ghi số liệu' : workoutEntries.length ? `${workoutEntries.length} bài · ${summarize(workoutEntries, exById, data.settings.weightKg).sets} set` : 'Chưa bắt đầu'}</span>
+        </section>
+      </div>
+      <div className="today-quick-actions grid2">
+        <button className="btn primary full" onClick={() => setLogging({meal:guessMeal()})}>+ Món ăn</button>
+        <button className="btn full" onClick={openWorkout}>{runOnly ? 'Nhập buổi chạy' : 'Mở buổi tập'}</button>
+      </div>
+      <section className={`card today-macros${turbo ? ' card-turbo' : ''}`}>
+        <div className="between"><h2 className="h2">Macro hôm nay</h2>
+            {runDay ? (
               <button
                 className={`badge turbo${day.turbo ? '' : ' off'}`}
                 aria-pressed={Boolean(day.turbo)}
@@ -243,21 +262,59 @@ export function Today({ date, setDate }: { date: string; setDate: (d: string) =>
                 <IconTurbo className="ico" />
                 {day.turbo ? `Turbo · +${n(adjust.run)} kcal` : `+ Turbo · +${n(adjust.run)} kcal`}
               </button>
-            ) : null
-          }
-        />
-        {alerts.size > 0 && (
-          <p className="dim" style={{ margin: '12px 0 0', textAlign: 'center' }}>
-            Vòng đỏ / cam = chưa đạt, bấm vào vòng để xem cách bù.
-          </p>
-        )}
+            ) : null}
+        </div>
+        <div className="compact-macros">
+          {(['protein','fat','carb'] as const).map((key) => <button key={key} className="macro-meter" aria-label={`${key === 'protein' ? 'Protein' : key === 'fat' ? 'Fat' : 'Carb'} — xem ghi chú`} onClick={() => setNoticeKey(key)}>
+            <span className="between"><span>{key === 'protein' ? 'Protein' : key === 'fat' ? 'Fat' : 'Carb'}</span><span className="num">{n(totals[key])} / {n(targets[key])} g</span></span>
+            <span className="macro-track" aria-hidden="true"><span style={{width:`${Math.min(100, totals[key] / targets[key] * 100)}%`}} /></span>
+          </button>)}
+        </div>
+        <div className="between dim" style={{marginTop:10,flexWrap:'wrap',gap:6}}><span>Target {n(targets.kcalMin)}–{n(targets.kcalMax)} kcal</span><span>Đường thêm {n(totals.addedSugar)} / {targets.addedSugarMax} g</span></div>
+        {warnings.length > 0 && <details className="macro-warnings"><summary>{warnings.length} ghi chú dinh dưỡng</summary><div className="col">{warnings.map((w) => <button key={w.key} className="btn sm" onClick={() => setNoticeKey(w.key)}>{w.message}</button>)}</div></details>}
+      </section>
+
+      {/* Bữa ăn trước, chi tiêu và hoạt động bổ sung bên dưới. */}
+      <div className="today-split">
+        <div className="today-meals">
+          <div className="between">
+            <h2 className="h2">Bữa ăn</h2>
+            <button className="btn sm" onClick={() => setScanning(true)} aria-label="Quét nhãn dinh dưỡng"><IconCamera className="ico" /> Quét nhãn</button>
+          </div>
+          {MEAL_ORDER.map((meal) => (
+            <MealCard
+              key={meal}
+              meal={meal}
+              entries={day.entries.filter((e) => e.meal === meal)}
+              map={map}
+              dayTotals={totals}
+              cost={costByMeal[meal]}
+              onAdd={() => setLogging({ meal })}
+              onSaveTemplate={() => setTemplateFor(meal)}
+              onEdit={setEditing}
+            />
+          ))}
+        </div>
+        <section className="card today-spend">
+          <div className="col" style={{ gap: 2, marginBottom: 4 }}>
+            <h2 className="h2">Chi tiêu ăn uống</h2>
+            <span className="dim num">Tuần: {vnd(week.cost)}</span>
+          </div>
+          {cost > 0 ? (
+            <ExpenseGauge byMeal={costByMeal} total={cost} compact />
+          ) : (
+            <p className="empty" style={{ padding: '14px 0 4px' }}>
+              Chưa nhập tiền cho ngày này. Giá tiền nhập lúc log món, hoặc bấm vào món
+              đã log để thêm sau.
+            </p>
+          )}
+        </section>
+
       </div>
 
-      {orderedSessions.map((s) => (
-        <Fragment key={s.key}>{s.node}</Fragment>
-      ))}
+      <details className="today-session-details"><summary>Chi tiết hoạt động trong ngày</summary><div className="col">{orderedSessions.map((s) => <Fragment key={s.key}>{s.node}</Fragment>)}</div></details>
 
-      <section className="card">
+      <section className="card today-week">
         <div className="between" style={{ marginBottom: 12 }}>
           <h2 className="h2">Tuần này</h2>
           <span className="dim num">
@@ -280,56 +337,6 @@ export function Today({ date, setDate }: { date: string; setDate: (d: string) =>
         </div>
       </section>
 
-      {/* Chi tiêu và bốn bữa nằm cạnh nhau chứ không xếp chồng: trước đây năm thẻ
-          full-width làm màn "Hôm nay" dài gấp đôi màn hình, phải cuộn mới thấy hết
-          một ngày. Hai khối này cũng đọc chung một câu chuyện — bữa nào ăn gì và
-          bữa đó tốn bao nhiêu. */}
-      <div className="today-split">
-        <section className="card">
-          <div className="col" style={{ gap: 2, marginBottom: 4 }}>
-            <h2 className="h2">Chi tiêu ăn uống</h2>
-            <span className="dim num">Tuần: {vnd(week.cost)}</span>
-          </div>
-          {cost > 0 ? (
-            <ExpenseGauge byMeal={costByMeal} total={cost} compact />
-          ) : (
-            <p className="empty" style={{ padding: '14px 0 4px' }}>
-              Chưa nhập tiền cho ngày này. Giá tiền nhập lúc log món, hoặc bấm vào món
-              đã log để thêm sau.
-            </p>
-          )}
-        </section>
-
-        <div className="today-meals">
-          {MEAL_ORDER.map((meal) => (
-            <MealCard
-              key={meal}
-              meal={meal}
-              entries={day.entries.filter((e) => e.meal === meal)}
-              map={map}
-              dayTotals={totals}
-              cost={costByMeal[meal]}
-              onAdd={() => setLogging({ meal })}
-              onSaveTemplate={() => setTemplateFor(meal)}
-              onEdit={setEditing}
-            />
-          ))}
-        </div>
-      </div>
-
-      <div className="fab-stack">
-        <button
-          className="fab secondary"
-          onClick={() => setScanning(true)}
-          aria-label="Quét nhãn dinh dưỡng"
-        >
-          <IconCamera />
-        </button>
-        <button className="fab" onClick={() => setLogging({ meal: guessMeal() })}>
-          + Thêm món
-        </button>
-      </div>
-
       {logging && (
         <LogSheet
           date={date}
@@ -340,6 +347,9 @@ export function Today({ date, setDate }: { date: string; setDate: (d: string) =>
       )}
       {scanning && <ScanSheet date={date} onClose={() => setScanning(false)} />}
       {running && <RunSheet date={date} onClose={() => setRunning(false)} />}
+      {workout && (workout.review
+        ? <SessionReview date={date} mode={workout.mode} onClose={() => setWorkout(null)} onEdit={() => { setLiftDone(date,workout.mode,false); setWorkout({...workout,review:false}) }} />
+        : <LiftSession date={date} mode={workout.mode} onClose={() => setWorkout(null)} />)}
       {notice && (
         <NoticeSheet
           notice={notice}
@@ -351,9 +361,9 @@ export function Today({ date, setDate }: { date: string; setDate: (d: string) =>
         />
       )}
       {editing &&
-        map.get(editing.foodId) &&
+        (editing.food ?? map.get(editing.foodId)) &&
         (() => {
-          const food = map.get(editing.foodId)!
+          const food = (editing.food ?? map.get(editing.foodId))!
           return (
             <EntrySheet
               date={date}
@@ -461,7 +471,7 @@ function MealCard({
           <>
             <div className="list">
               {entries.map((e) => {
-                const food = map.get(e.foodId)
+                const food = e.food ?? map.get(e.foodId)
                 if (!food) return null
                 const m = macrosFor(food, e.amount, e.oilTsp ?? 0)
                 return (
@@ -608,7 +618,7 @@ function LiftSummary({
 
       <div className="list" id={id} hidden={!open} style={{ marginTop: 6 }}>
         {entries.map((entry) => {
-          const ex = exById.get(entry.exerciseId)
+          const ex = entry.exercise ?? exById.get(entry.exerciseId)
           if (!ex) return null
           return (
             <div key={entry.id} className="list-item">
@@ -640,7 +650,7 @@ function SaveTemplateSheet({
   const map = useMemo(() => foodMap(data), [data])
   const [name, setName] = useState(
     `${MEAL_LABELS[meal]} — ${entries
-      .map((e) => map.get(e.foodId)?.name)
+      .map((e) => (e.food ?? map.get(e.foodId))?.name)
       .filter(Boolean)
       .slice(0, 2)
       .join(' + ')}`,
@@ -659,7 +669,7 @@ function SaveTemplateSheet({
       </div>
       <div className="list">
         {entries.map((e) => {
-          const food = map.get(e.foodId)
+          const food = e.food ?? map.get(e.foodId)
           return (
             <div key={e.id} className="list-item">
               <span className="grow truncate">{food?.name ?? '—'}</span>

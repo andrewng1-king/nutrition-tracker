@@ -1,7 +1,10 @@
 import { SEED_EXERCISES } from '../data/exercises'
 import { SEED_FOODS } from '../data/foods'
-import { DEFAULT_SETTINGS, dateKey, dayTypesFor } from './macros'
+import { dateKey, dayTypesFor } from './macros'
 import { normalizeExercise } from './muscles'
+import { createEmptyData, DATA_VERSION, decodeAppData } from './dataCodec'
+import { clearReadError, persist, reportReadError } from './persistence'
+import { historicalWeight } from './historyWeight'
 import type {
   AppData,
   DayLog,
@@ -20,37 +23,21 @@ import type {
 } from './types'
 
 const KEY = 'nutrition-tracker-v1'
-const VERSION = 4
+const VERSION = DATA_VERSION
+let unreadable = false
 
 function emptyData(): AppData {
-  return {
-    version: VERSION,
-    settings: { ...DEFAULT_SETTINGS },
-    customFoods: [],
-    customExercises: [],
-    days: {},
-    templates: [],
-    workoutTemplates: [],
-    lastAmounts: {},
-    lastCosts: {},
-    recent: {},
-    restSec: {},
-  }
+  return createEmptyData()
 }
 
 function load(): AppData {
   try {
     const raw = localStorage.getItem(KEY)
     if (!raw) return emptyData()
-    const parsed = JSON.parse(raw) as Partial<AppData>
-    return {
-      ...emptyData(),
-      ...parsed,
-      version: VERSION,
-      settings: { ...DEFAULT_SETTINGS, ...(parsed.settings ?? {}) },
-    }
+    return decodeAppData(JSON.parse(raw))
   } catch {
-    // Corrupt storage must not brick the app — start clean rather than crash.
+    unreadable = true
+    reportReadError(KEY)
     return emptyData()
   }
 }
@@ -69,11 +56,8 @@ const commitListeners = new Set<CommitListener>()
 function commit(next: AppData, origin: CommitOrigin = 'local') {
   const prev = data
   data = next
-  try {
-    localStorage.setItem(KEY, JSON.stringify(data))
-  } catch (err) {
-    console.error('Không lưu được dữ liệu', err)
-  }
+  // Không ghi đè bản hỏng khi chưa nhập backup hoặc chủ động reset.
+  if (!unreadable) persist(KEY, JSON.stringify(data))
   commitListeners.forEach((l) => l(prev, next, origin))
   listeners.forEach((l) => l())
 }
@@ -84,6 +68,7 @@ export const store = {
     return () => listeners.delete(l)
   },
   get: () => data,
+  hasReadError: () => unreadable,
   /** Lớp đồng bộ nghe mọi lần ghi để biết ngày nào vừa đổi. */
   onCommit(l: CommitListener) {
     commitListeners.add(l)
@@ -91,7 +76,7 @@ export const store = {
   },
   /** Ghi dữ liệu kéo từ Supabase về — không kích hoạt đẩy ngược lên. */
   applyRemote(fn: (d: AppData) => AppData) {
-    commit({ ...emptyData(), ...fn(data), version: VERSION }, 'remote')
+    commit(decodeAppData({ ...emptyData(), ...fn(data), version: VERSION }), 'remote')
   },
 }
 
@@ -103,19 +88,19 @@ const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(
 
 // ---------------- foods ----------------
 
-export function allFoods(d: AppData = data): Food[] {
+export function allFoods(d: AppData = data, includeArchived = false): Food[] {
   const overridden = new Set(d.customFoods.map((f) => f.id))
-  return [...SEED_FOODS.filter((f) => !overridden.has(f.id)), ...d.customFoods]
+  return [...SEED_FOODS.filter((f) => !overridden.has(f.id)), ...d.customFoods].filter((f) => includeArchived || !f.archived)
 }
 
 export function foodMap(d: AppData = data): Map<string, Food> {
-  return new Map(allFoods(d).map((f) => [f.id, f]))
+  return new Map(allFoods(d, true).map((f) => [f.id, f]))
 }
 
 export function saveFood(food: Omit<Food, 'id' | 'custom'> & { id?: string }) {
   const id = food.id ?? `custom-${uid()}`
   update((d) => ({
-    ...d,
+    ...freezeFood(d, id),
     customFoods: [
       ...d.customFoods.filter((f) => f.id !== id),
       { ...food, id, custom: true } as Food,
@@ -125,7 +110,16 @@ export function saveFood(food: Omit<Food, 'id' | 'custom'> & { id?: string }) {
 }
 
 export function deleteFood(id: string) {
-  update((d) => ({ ...d, customFoods: d.customFoods.filter((f) => f.id !== id) }))
+  update((d) => ({ ...freezeFood(d, id), customFoods: d.customFoods.filter((f) => f.id !== id) }))
+}
+
+/** Chụp món cho log cũ trước khi sửa thư viện. */
+function freezeFood(d: AppData, id: string): AppData {
+  const food = foodMap(d).get(id)
+  if (!food) return d
+  return { ...d, days: Object.fromEntries(Object.entries(d.days).map(([date, day]) => [date,
+    day.entries.some((e) => e.foodId === id && !e.food)
+      ? { ...day, entries: day.entries.map((e) => e.foodId === id && !e.food ? { ...e, food: { ...food } } : e) } : day])) }
 }
 
 /** true nếu id thuộc seed và đang bị custom food ghi đè — cho phép "khôi phục gốc" */
@@ -141,21 +135,21 @@ const SEED_BY_ID = new Map(SEED_EXERCISES.map((e) => [e.id, e]))
  * Bài có sẵn + bài tự thêm. Bản custom trùng id sẽ ghi đè bài gốc (đổi tên, đổi quy ước kg).
  * Bản lưu từ thời nhóm split được quy về nhóm cơ ngay lúc đọc.
  */
-export function allExercises(d: AppData = data): Exercise[] {
+export function allExercises(d: AppData = data, includeArchived = false): Exercise[] {
   const custom = (d.customExercises ?? []).map((e) => normalizeExercise(e, SEED_BY_ID.get(e.id)))
   const overridden = new Set(custom.map((e) => e.id))
-  return [...SEED_EXERCISES.filter((e) => !overridden.has(e.id)), ...custom]
+  return [...SEED_EXERCISES.filter((e) => !overridden.has(e.id)), ...custom].filter((e) => includeArchived || !e.archived)
 }
 
 export function exerciseMap(d: AppData = data): Map<string, Exercise> {
-  return new Map(allExercises(d).map((e) => [e.id, e]))
+  return new Map(allExercises(d, true).map((e) => [e.id, e]))
 }
 
 export function saveExercise(ex: Omit<Exercise, 'id'> & { id?: string }) {
   const id = ex.id ?? `ex-${uid()}`
   const isSeed = SEED_EXERCISES.some((s) => s.id === id)
   update((d) => ({
-    ...d,
+    ...freezeExercise(d, id),
     customExercises: [
       ...(d.customExercises ?? []).filter((e) => e.id !== id),
       { ...ex, id, custom: !isSeed } as Exercise,
@@ -167,9 +161,21 @@ export function saveExercise(ex: Omit<Exercise, 'id'> & { id?: string }) {
 /** Bỏ bản ghi đè để bài có sẵn quay về mặc định; bài tự thêm thì xoá hẳn. */
 export function deleteExercise(id: string) {
   update((d) => ({
-    ...d,
-    customExercises: (d.customExercises ?? []).filter((e) => e.id !== id),
+    ...freezeExercise(d, id),
+    customExercises: (d.customExercises ?? []).flatMap((e) => e.id !== id ? [e] : SEED_BY_ID.has(id) ? [] : [{ ...e, archived: true }]),
   }))
+}
+
+function freezeExercise(d: AppData, id: string): AppData {
+  const exercise = exerciseMap(d).get(id)
+  if (!exercise) return d
+  return { ...d, days: Object.fromEntries(Object.entries(d.days).map(([date, day]) => [date,
+    day.lifts?.some((e) => e.exerciseId === id && !e.exercise)
+      ? { ...day, lifts: day.lifts.map((e) => e.exerciseId === id && !e.exercise ? { ...e, exercise: { ...exercise }, bodyKg: e.bodyKg ?? day.weightKg ?? weightAt(d, date) } : e) } : day])) }
+}
+
+export function weightAt(d: AppData, date: string): number {
+  return historicalWeight(d, date, d.settings.weightKg)
 }
 
 export function isOverriddenSeedExercise(id: string, d: AppData = data): boolean {
@@ -201,7 +207,7 @@ export function addEntry(
     cost?: number
   },
 ) {
-  const entry: Entry = { id: uid(), ts: Date.now(), ...input }
+  const entry: Entry = { id: uid(), ts: Date.now(), ...input, food: foodMap().get(input.foodId) }
   update((d) => {
     const next = withDay(d, date, (day) => ({ ...day, entries: [...day.entries, entry] }))
     const lastCosts = { ...next.lastCosts }
@@ -276,11 +282,11 @@ export function setLiftEntry(date: string, exerciseId: string, sets: LiftSet[]) 
         return {
           ...day,
           lifts: lifts.map((e) =>
-            e.exerciseId === exerciseId ? { ...e, sets: clean } : e,
+            e.exerciseId === exerciseId ? { ...e, sets: clean, exercise: e.exercise ?? exerciseMap(d).get(exerciseId), bodyKg: e.bodyKg ?? weightAt(d, date) } : e,
           ),
         }
       }
-      const entry: LiftEntry = { id: uid(), exerciseId, sets: clean, ts: Date.now() }
+      const entry: LiftEntry = { id: uid(), exerciseId, sets: clean, ts: Date.now(), exercise: exerciseMap(d).get(exerciseId), bodyKg: weightAt(d, date) }
       return { ...day, lifts: [...lifts, entry], dayTypes: withLift(day.dayTypes) }
     }),
   )
@@ -470,6 +476,7 @@ export function applyTemplate(date: string, templateId: string, meal: MealSlot) 
     id: uid(),
     ts: now + i,
     foodId: item.foodId,
+    food: foodMap().get(item.foodId),
     amount: item.amount,
     meal,
     oilTsp: item.oilTsp,
@@ -505,11 +512,11 @@ export function exportJSON(): string {
 
 export function importJSON(raw: string): { ok: true } | { ok: false; error: string } {
   try {
-    const parsed = JSON.parse(raw) as Partial<AppData>
-    if (typeof parsed !== 'object' || parsed === null || !parsed.days) {
-      return { ok: false, error: 'File không đúng định dạng backup.' }
-    }
-    commit({ ...emptyData(), ...parsed, version: VERSION })
+    const parsed = decodeAppData(JSON.parse(raw))
+    if (!persist(KEY, JSON.stringify(parsed), false)) return { ok: false, error: 'Không lưu được backup trên máy. Dữ liệu hiện tại chưa bị thay thế.' }
+    unreadable = false
+    clearReadError(KEY)
+    commit(parsed)
     return { ok: true }
   } catch (err) {
     return { ok: false, error: `Không đọc được file: ${(err as Error).message}` }
@@ -527,6 +534,8 @@ export function downloadBackup() {
 }
 
 export function resetAll() {
+  unreadable = false
+  clearReadError(KEY)
   commit(emptyData())
 }
 

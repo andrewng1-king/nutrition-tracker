@@ -17,7 +17,7 @@ interface Props {
 
 /** Gắn vào `body` như `Popup` — vuốt trên nền mờ không được cuộn trang phía sau. */
 export function Sheet({ title, onClose, children, action, size = 'auto' }: Props) {
-  useOverlay(onClose)
+  const overlay = useOverlay(onClose)
 
   return createPortal(
     <div
@@ -28,6 +28,8 @@ export function Sheet({ title, onClose, children, action, size = 'auto' }: Props
     >
       <div
         className={`sheet${size === 'full' ? ' sheet-full' : ''}`}
+        ref={overlay}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label={title}

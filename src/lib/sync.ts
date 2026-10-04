@@ -2,6 +2,7 @@ import type { Session } from '@supabase/supabase-js'
 import { draftStore, type DraftMap } from './draft'
 import { blankData, store } from './storage'
 import { supabase } from './supabase'
+import { persist, persistenceStore } from './persistence'
 import {
   changedDays,
   hasLocalData,
@@ -66,15 +67,18 @@ function loadMeta(): SyncMeta {
 let meta: SyncMeta = loadMeta()
 
 function saveMeta() {
-  try {
-    localStorage.setItem(META_KEY, JSON.stringify(meta))
-  } catch (err) {
-    console.error('Không lưu được trạng thái đồng bộ', err)
-  }
+  persist(META_KEY, JSON.stringify(meta))
 }
 
 const pendingCount = () =>
-  Object.keys(meta.dirtyDays).length + (meta.metaDirtyAt ? 1 : 0)
+  Object.keys(meta.dirtyDays).length + (meta.metaDirtyAt ? 1 : 0) + (meta.draftDirtyAt ? 1 : 0)
+
+/** Không dùng cùng timestamp cho hai thay đổi trong cùng một millisecond. */
+function editStamp() {
+  return Math.max(Date.now(), (meta.metaDirtyAt ?? 0) + 1, (meta.metaSeenAt ?? 0) + 1,
+    (meta.draftDirtyAt ?? 0) + 1, (meta.draftSeenAt ?? 0) + 1,
+    ...Object.values(meta.dirtyDays).map((ts) => ts + 1))
+}
 
 let state: SyncState = {
   configured: Boolean(supabase),
@@ -100,6 +104,7 @@ export const syncStore = {
 let userId: string | null = null
 let running = false
 let again = false
+let conflictRetries = 0
 let pushTimer: ReturnType<typeof setTimeout> | undefined
 let pollTimer: ReturnType<typeof setInterval> | undefined
 let firstSyncData: { meta: RemoteMeta | null; days: RemoteDayRow[] } | null = null
@@ -324,6 +329,7 @@ export function resolveFirstSync(kind: 'remote' | 'merge') {
 
 export async function syncNow(): Promise<void> {
   if (!supabase || !userId || state.choice) return
+  if (store.hasReadError()) { setState({ status: 'error', error: 'Nhập backup hợp lệ trước khi đồng bộ dữ liệu trên máy.' }); return }
   if (running) {
     again = true
     return
@@ -344,10 +350,21 @@ export async function syncNow(): Promise<void> {
     }
     await pull()
     await push()
+    conflictRetries = 0
     meta.lastSyncAt = Date.now()
     saveMeta()
     setState({ status: 'idle', lastSyncAt: meta.lastSyncAt, pending: pendingCount() })
   } catch (err) {
+    if ((err as { code?: string })?.code === '40001') {
+      // Giữ dirty flags; lượt kế tiếp kéo bản thắng về trước khi thử push lại.
+      meta.metaSeenAt = 0
+      meta.draftSeenAt = 0
+      meta.cursor = undefined
+      // Một lần kéo lại là đủ; lỗi server lặp lại phải dừng, không spin vô hạn.
+      again = conflictRetries++ === 0
+    } else {
+      conflictRetries = 0
+    }
     setState({
       status: typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'error',
       error: describe(err),
@@ -368,8 +385,8 @@ export async function syncNow(): Promise<void> {
  * thật. 'local' = chưa đăng nhập, dữ liệu chỉ nằm trên máy; 'pending' = mất
  * mạng hoặc quá giờ, phần còn lại tự đẩy lên sau.
  */
-export async function flushSync(timeoutMs = 4000): Promise<'synced' | 'pending' | 'local'> {
-  if (!supabase || !userId) return 'local'
+export async function flushSync(timeoutMs = 4000): Promise<'synced' | 'pending' | 'local' | 'unsaved'> {
+  if (!supabase || !userId) return Object.keys(persistenceStore.get()).length ? 'unsaved' : 'local'
   clearTimeout(pushTimer)
   const deadline = Date.now() + timeoutMs
   const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -377,7 +394,8 @@ export async function flushSync(timeoutMs = 4000): Promise<'synced' | 'pending' 
   // Đang có lượt đồng bộ khác chạy thì syncNow chỉ hẹn thêm một lượt rồi về ngay.
   while ((running || again) && Date.now() < deadline) await wait(100)
   const done = !running && !again && state.status === 'idle' && state.pending === 0
-  return done && !state.choice ? 'synced' : 'pending'
+  if (done && !state.choice) return 'synced'
+  return Object.keys(persistenceStore.get()).length ? 'unsaved' : 'pending'
 }
 
 function schedulePush() {
@@ -412,7 +430,7 @@ export function initSync() {
 
   store.onCommit((prev, next, origin) => {
     if (origin === 'remote') return
-    const now = Date.now()
+    const now = editStamp()
     for (const date of changedDays(prev, next)) meta.dirtyDays[date] = now
     if (metaChanged(prev, next)) meta.metaDirtyAt = now
     saveMeta()
@@ -422,8 +440,9 @@ export function initSync() {
 
   draftStore.onChange((origin) => {
     if (origin === 'remote') return
-    meta.draftDirtyAt = Date.now()
+    meta.draftDirtyAt = editStamp()
     saveMeta()
+    setState({ pending: pendingCount() })
     schedulePush()
   })
 

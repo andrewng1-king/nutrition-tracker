@@ -64,14 +64,13 @@ import { WalkForm } from './WalkForm'
 type View =
   | { kind: 'session' }
   | { kind: 'pick' }
-  | { kind: 'edit'; exerciseId: string }
   | { kind: 'form'; exerciseId?: string }
   | { kind: 'save-template' }
   | { kind: 'walk' }
 
 /**
- * Luồng buổi tập, mỗi bước một trang toàn màn hình: buổi tập → chọn bài → nhập
- * set → sửa bài. Nút ‹ lùi đúng một bước, về tới trang buổi tập thì đóng hẳn.
+ * Nhập set ngay trong danh sách buổi tập; chọn và sửa bài mở trang riêng.
+ * Nút ‹ lùi đúng một bước, về tới trang buổi tập thì đóng hẳn.
  */
 export function LiftSession({
   date,
@@ -94,9 +93,8 @@ export function LiftSession({
     [data, mode],
   )
   const exById = useMemo(() => exerciseMap(data), [data])
-  const [view, setView] = useState<View>(
-    initialExerciseId ? { kind: 'edit', exerciseId: initialExerciseId } : { kind: 'session' },
-  )
+  const [view, setView] = useState<View>({ kind: 'session' })
+  const [expanded, setExpanded] = useState<string | null>(initialExerciseId ?? null)
   const [finishing, setFinishing] = useState(false)
   const rest = useRest()
   // Đồng hồ nghỉ dính đáy mọi trang của buổi tập — đổi sang bài khác vẫn thấy.
@@ -104,19 +102,38 @@ export function LiftSession({
 
   // Trang gym chỉ hiện bài gym, trang calisthenic chỉ hiện bài thể trọng.
   const inMode = (exerciseId: string) => exById.get(exerciseId)?.mode === mode
-  const lifts = (day.lifts ?? []).filter((e) => inMode(e.exerciseId))
+  const lifts = (day.lifts ?? []).filter((e) => (e.exercise ?? exById.get(e.exerciseId))?.mode === mode)
   const plan = (day.plan ?? []).filter((p) => inMode(p.exerciseId))
   const toSession = () => setView({ kind: 'session' })
+  const selectExercise = (id: string) => {
+    if (!lifts.some((entry) => entry.exerciseId === id) && !plan.some((item) => item.exerciseId === id)) {
+      addToPlan(date, [{
+        exerciseId: id,
+        sets: lastSetsFor(data, id, date)?.sets ?? Array.from({ length: 3 }, () => ({ kg: 0, reps: 0 })),
+      }])
+    }
+    setExpanded(id)
+    toSession()
+  }
+  useEffect(() => {
+    if (!expanded || view.kind !== 'session') return
+    const editor = document.getElementById(`exercise-editor-${expanded}`)
+    const heading = editor?.previousElementSibling
+    if (heading instanceof HTMLButtonElement) {
+      heading.focus({preventScroll:true})
+      heading.scrollIntoView?.({block:'nearest'})
+    }
+  }, [expanded, view.kind])
 
   if (view.kind === 'pick') {
     return (
-      <Page title="Chọn bài" onBack={toSession}>
+      <Page title="Chọn bài" onBack={toSession} footer={restBar}>
         <PickView
           exercises={exercises}
           date={date}
           loggedIds={new Set(lifts.map((e) => e.exerciseId))}
           plannedIds={new Set(plan.map((p) => p.exerciseId))}
-          onPick={(id) => setView({ kind: 'edit', exerciseId: id })}
+          onPick={selectExercise}
           onCreate={() => setView({ kind: 'form' })}
         />
       </Page>
@@ -125,35 +142,15 @@ export function LiftSession({
 
   if (view.kind === 'form') {
     const back = () =>
-      setView(view.exerciseId ? { kind: 'edit', exerciseId: view.exerciseId } : { kind: 'pick' })
+      setView(view.exerciseId ? { kind: 'session' } : { kind: 'pick' })
     return (
-      <Page title={view.exerciseId ? 'Sửa bài tập' : 'Bài tập mới'} onBack={back}>
+      <Page title={view.exerciseId ? 'Sửa bài tập' : 'Bài tập mới'} onBack={back} footer={restBar}>
         <ExerciseForm
           existing={view.exerciseId ? exById.get(view.exerciseId) : undefined}
           defaultGroup={mode === 'calisthenic' ? 'back' : 'chest'}
           mode={mode}
-          onDone={(id) => setView({ kind: 'edit', exerciseId: id })}
+          onDone={selectExercise}
           onCancel={back}
-        />
-      </Page>
-    )
-  }
-
-  if (view.kind === 'edit') {
-    const ex = exById.get(view.exerciseId)
-    if (!ex) {
-      toSession()
-      return null
-    }
-    return (
-      <Page title={ex.name} onBack={toSession} footer={restBar}>
-        <SetEditor
-          key={ex.id}
-          ex={ex}
-          date={date}
-          planned={plan.find((p) => p.exerciseId === ex.id)?.sets}
-          onDone={toSession}
-          onEditExercise={() => setView({ kind: 'form', exerciseId: ex.id })}
         />
       </Page>
     )
@@ -161,7 +158,7 @@ export function LiftSession({
 
   if (view.kind === 'walk') {
     return (
-      <Page title="Đi bộ dốc" onBack={toSession}>
+      <Page title="Đi bộ dốc" onBack={toSession} footer={restBar}>
         <WalkForm date={date} onDone={toSession} />
       </Page>
     )
@@ -169,7 +166,7 @@ export function LiftSession({
 
   if (view.kind === 'save-template') {
     return (
-      <Page title="Lưu thành buổi mẫu" onBack={toSession}>
+      <Page title="Lưu thành buổi mẫu" onBack={toSession} footer={restBar}>
         <SaveTemplateView
           data={data}
           mode={mode}
@@ -183,8 +180,15 @@ export function LiftSession({
 
   const total = summarize(lifts, exById, bodyKg)
   const rows = sessionRows(lifts, plan, exById)
+  for (const draft of Object.values(drafts)) {
+    const ex = exById.get(draft.exerciseId)
+    if (draft.date === date && ex?.mode === mode && !rows.some((r) => r.ex.id === ex.id)) rows.push({ex})
+  }
+  // Bài vừa chọn chưa có log/kế hoạch vẫn cần một hàng để nhập set.
+  const selected = expanded ? exById.get(expanded) : undefined
+  if (selected && !rows.some((r) => r.ex.id === expanded)) rows.push({ex:selected})
   const unlogged = plan.filter((p) => !lifts.some((e) => e.exerciseId === p.exerciseId))
-  const fresh = lifts.length === 0 && plan.length === 0
+  const fresh = rows.length === 0
   const title = mode === 'gym' ? 'Buổi tập tạ' : 'Buổi calisthenic'
   // Set đã điền mà chưa tick, nằm trong nháp — vẫn đủ để bấm hoàn thành.
   const pendingSets = Object.values(drafts)
@@ -231,7 +235,7 @@ export function LiftSession({
         )
       }
     >
-      {fresh && <StartSession data={data} date={date} mode={mode} exById={exById} />}
+      {fresh && !expanded && <StartSession data={data} date={date} mode={mode} exById={exById} />}
 
       {lifts.length > 0 && (
         <div className="card ink">
@@ -249,16 +253,18 @@ export function LiftSession({
           {rows.map(({ ex, entry, planned }) => {
             const hasDraft = Boolean(drafts[`${date}|${ex.id}`])
             return (
+              <div key={ex.id} className="session-exercise">
               <button
-                key={ex.id}
                 className={`list-item${entry ? '' : ' planned'}`}
-                onClick={() => setView({ kind: 'edit', exerciseId: ex.id })}
+                aria-expanded={expanded === ex.id}
+                aria-controls={`exercise-editor-${ex.id}`}
+                onClick={() => setExpanded((current) => current === ex.id ? null : ex.id)}
               >
                 <span className="grow">
                   <span className="row" style={{ gap: 6 }}>
                     <span className="truncate lift-name">{ex.name}</span>
                     {hasDraft && <span className="badge moderate">nháp</span>}
-                    {!entry && <span className="badge est">kế hoạch</span>}
+                    {!entry && planned && <span className="badge est">kế hoạch</span>}
                   </span>
                   <span className="dim num">
                     {entry
@@ -282,6 +288,12 @@ export function LiftSession({
                   )}
                 </span>
               </button>
+              {expanded === ex.id && <div id={`exercise-editor-${ex.id}`} className="inline-set-editor">
+                <SetEditor key={ex.id} ex={ex} date={date} planned={planned}
+                  onDone={() => setExpanded(null)}
+                  onEditExercise={() => setView({kind:'form',exerciseId:ex.id})} />
+              </div>}
+              </div>
             )
           })}
           {walk && (
@@ -381,14 +393,16 @@ function sessionRows(
   }
   for (const entry of lifts) {
     if (plan.some((p) => p.exerciseId === entry.exerciseId)) continue
-    const ex = exById.get(entry.exerciseId)
+    const ex = entry.exercise ?? exById.get(entry.exerciseId)
     if (ex) out.push({ ex, entry })
   }
   return out
 }
 
 const planLabel = (sets: LiftSet[]) =>
-  sets.map((s) => (s.reps > 0 ? shortSet(s) : '?')).join('  ·  ')
+  sets.some((s) => s.reps > 0)
+    ? sets.map((s) => (s.reps > 0 ? shortSet(s) : 'Chưa nhập')).join('  ·  ')
+    : 'Chưa nhập set'
 
 // ---------------- bắt đầu buổi: lặp lại buổi gần đây + buổi mẫu ----------------
 
@@ -408,8 +422,14 @@ function StartSession({
     .filter((t) => t.mode === mode)
     .sort((a, b) => a.name.localeCompare(b.name, 'vi'))
 
+  if (recent.length === 0 && templates.length === 0) return <div className="empty-workout">
+    <h2 className="h2">Chưa có bài trong buổi tập</h2>
+    <p className="muted">Chọn bài để bắt đầu.</p>
+  </div>
+
   return (
-    <>
+    <details className="session-start-options">
+      <summary>Buổi gần đây &amp; buổi mẫu</summary>
       {recent.length > 0 ? (
         <div className="card start-card col">
           <h3 className="h2">Lặp lại buổi gần đây</h3>
@@ -439,8 +459,7 @@ function StartSession({
         </div>
       ) : (
         <p className="muted" style={{ margin: 0 }}>
-          Chưa có buổi nào trước {dayLabel(date).toLowerCase()} để lặp lại — bấm Thêm bài để
-          bắt đầu.
+          Chọn bài mới hoặc dùng buổi mẫu bên dưới.
         </p>
       )}
 
@@ -479,7 +498,7 @@ function StartSession({
           </div>
         </div>
       )}
-    </>
+    </details>
   )
 }
 
@@ -881,6 +900,8 @@ function SetEditor({
           Drop
         </button>
       </div>
+      <p className="set-previous num">{last?.sets[i] ? `Lần trước: ${shortSet(last.sets[i])} · ${shortDate(last.date)}` : 'Chưa có set tương ứng trong lịch sử'}</p>
+      <div className="focused-fields">
       <Stepper
         size="lg"
         value={r.kg}
@@ -898,6 +919,7 @@ function SetEditor({
         label={`rep set ${i + 1}`}
         onChange={(v) => editField(i, 'reps', v)}
       />
+      </div>
       {r.drops.map((d, j) => (
         <div key={j} className="drop-line">
           <IconArrowDown className="ico drop-arrow" />

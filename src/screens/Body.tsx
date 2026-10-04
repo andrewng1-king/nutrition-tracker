@@ -29,6 +29,7 @@ export function Body() {
   const waists = useMemo(() => series(data, 'waistCm', range), [data, range])
 
   const save = () => {
+    if (!valid) return
     const w = weight.trim() === '' ? undefined : Number(weight)
     const c = waist.trim() === '' ? undefined : Number(waist)
     setDayField(today, { weightKg: w, waistCm: c })
@@ -38,6 +39,7 @@ export function Body() {
 
   const dirty =
     weight !== (day.weightKg?.toString() ?? '') || waist !== (day.waistCm?.toString() ?? '')
+  const valid = [weight, waist].every((value) => value.trim() === '' || (Number.isFinite(Number(value)) && Number(value) > 0))
 
   return (
     <div className="screen">
@@ -74,11 +76,12 @@ export function Body() {
         <button
           className="btn primary full"
           style={{ marginTop: 10 }}
-          disabled={!dirty}
+          disabled={!dirty || !valid}
           onClick={save}
         >
           Lưu số đo
         </button>
+        {!valid && <p role="alert" className="dim">Số đo phải lớn hơn 0, hoặc để trống để xoá.</p>}
       </div>
 
       <div className="seg">

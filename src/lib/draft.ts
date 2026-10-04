@@ -1,4 +1,5 @@
 import type { LiftMode } from './types'
+import { persist } from './persistence'
 
 /**
  * Bản nháp ô nhập set. Chuỗi thô, đúng thứ người dùng đang gõ ("22,"), để mở
@@ -57,11 +58,7 @@ const changeListeners = new Set<(origin: 'local' | 'remote') => void>()
 
 function set(next: DraftMap, origin: 'local' | 'remote') {
   drafts = next
-  try {
-    localStorage.setItem(KEY, JSON.stringify(drafts))
-  } catch (err) {
-    console.error('Không lưu được bản nháp', err)
-  }
+  persist(KEY, JSON.stringify(drafts))
   changeListeners.forEach((l) => l(origin))
   listeners.forEach((l) => l())
 }

@@ -21,10 +21,10 @@ export function Page({
   footer?: ReactNode
   action?: ReactNode
 }) {
-  useOverlay(onBack)
+  const overlay = useOverlay(onBack)
 
   return (
-    <div className="page" role="dialog" aria-modal="true" aria-label={title}>
+    <div ref={overlay} tabIndex={-1} className="page" role="dialog" aria-modal="true" aria-label={title}>
       <div className="page-head">
         <button className="page-back" onClick={onBack} aria-label="Quay lại">
           <IconChevron className="ico" />

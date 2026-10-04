@@ -20,7 +20,7 @@ const LINGER_MS = 12_000
  * Web không báo được khi màn hình đã khoá, nhất là trên iPhone — nên trong lúc
  * đếm thì giữ màn hình sáng (Wake Lock) để liếc là thấy.
  */
-export function RestBar() {
+function useRestClock() {
   const rest = useRest()
   const [now, setNow] = useState(() => Date.now())
 
@@ -39,6 +39,12 @@ export function RestBar() {
 
   const left = rest ? rest.endAt - now : 0
   const done = Boolean(rest) && left <= 0
+  return { rest, left, done }
+}
+
+/** Sống suốt phiên app: đổi màn không huỷ alert hay Wake Lock. */
+export function RestController() {
+  const { rest, done } = useRestClock()
 
   useEffect(() => {
     if (!rest || !done) return
@@ -51,6 +57,11 @@ export function RestBar() {
   }, [rest, done])
 
   useWakeLock(Boolean(rest) && !done)
+  return null
+}
+
+export function RestBar() {
+  const { rest, left, done } = useRestClock()
 
   if (!rest) return null
 

@@ -22,7 +22,7 @@ export function DayTypeBar({ date }: { date: string }) {
   const turbo = runOn && Boolean(day.turbo)
   const [asking, setAsking] = useState(false)
   // Hiệu ứng "cường hoá" chạy một nhịp mỗi lần turbo vừa được bật.
-  const justBoosted = useBoost(turbo)
+  const justBoosted = useBoost(turbo, 550)
 
   return (
     <div className="col" style={{ gap: 8 }}>

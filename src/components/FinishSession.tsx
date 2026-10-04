@@ -33,7 +33,7 @@ import { Stat } from './Stat'
 type Step = 'confirm' | 'start' | 'saving' | 'done'
 
 /** Vòng quay tối thiểu — lưu trên máy xong tức thì, loading nháy một cái trông như lỗi. */
-const MIN_SPIN_MS = 700
+const MIN_SPIN_MS = 150
 
 /**
  * Bấm "Hoàn thành buổi tập": gom nốt set đã điền mà chưa tick, dọn kế hoạch, đẩy
@@ -78,7 +78,7 @@ export function FinishSession({
 
   const needsConfirm = leftover.pendingSets > 0 || unplayed > 0
   const [step, setStep] = useState<Step>(needsConfirm ? 'confirm' : 'start')
-  const [synced, setSynced] = useState<'synced' | 'pending' | 'local'>('local')
+  const [synced, setSynced] = useState<'synced' | 'pending' | 'local' | 'unsaved'>('local')
 
   const save = (tickPending: boolean) => {
     if (tickPending) {
@@ -180,7 +180,7 @@ export function FinishSession({
       )}
 
       {step === 'done' && (
-        <SessionSummary date={date} mode={mode} heading="Đã lưu buổi tập" synced={synced}>
+        <SessionSummary date={date} mode={mode} heading={synced === 'unsaved' ? 'Chưa lưu được trên máy' : 'Đã lưu buổi tập'} synced={synced}>
           <button className="btn primary full" onClick={onDone}>
             Xong
           </button>
@@ -210,14 +210,14 @@ export function SessionSummary({
   mode: LiftMode
   heading?: string
   details?: boolean
-  synced?: 'synced' | 'pending' | 'local'
+  synced?: 'synced' | 'pending' | 'local' | 'unsaved'
   children: ReactNode
 }) {
   const data = useData()
   const exById = useMemo(() => exerciseMap(data), [data])
   const bodyKg = data.settings.weightKg
   const day = getDay(date, data)
-  const lifts = (day.lifts ?? []).filter((e) => exById.get(e.exerciseId)?.mode === mode)
+  const lifts = (day.lifts ?? []).filter((e) => (e.exercise ?? exById.get(e.exerciseId))?.mode === mode)
   const walk = mode === 'gym' ? day.walk : undefined
   const total = summarize(lifts, exById, bodyKg)
   const compare = compareWithPrevious(data, mode, date, lifts, exById, bodyKg)
@@ -238,15 +238,15 @@ export function SessionSummary({
                 cy="32"
                 r="28"
                 fill="none"
-                stroke="var(--lime)"
+                stroke={synced === 'unsaved' ? 'var(--warn)' : 'var(--lime)'}
                 strokeWidth="5"
                 transform="rotate(-90 32 32)"
               />
               <path
                 className="finish-tick"
-                d="m20 33 8 8 16-17"
+                d={synced === 'unsaved' ? 'M32 20v17 M32 44v1' : 'm20 33 8 8 16-17'}
                 fill="none"
-                stroke="var(--lime)"
+                stroke={synced === 'unsaved' ? 'var(--warn)' : 'var(--lime)'}
                 strokeWidth="5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -258,6 +258,7 @@ export function SessionSummary({
             {label ? `${label} · ` : ''}
             {weekday(date)} {shortDate(date)}
             {synced === 'pending' && ' · lưu trên máy, sẽ đồng bộ khi có mạng'}
+            {synced === 'unsaved' && ' · giữ app mở và thử lưu lại hoặc tải backup'}
           </p>
         </>
       ) : (
@@ -281,7 +282,7 @@ export function SessionSummary({
           <div className="finish-block">
             <span className="h2">Các bài · {lifts.length}</span>
             {lifts.map((e) => {
-              const ex = exById.get(e.exerciseId)
+              const ex = e.exercise ?? exById.get(e.exerciseId)
               if (!ex) return null
               return (
                 <div key={e.id} className="finish-ex">

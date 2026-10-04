@@ -20,7 +20,7 @@ export function Popup({
   onClose: () => void
   children: ReactNode
 }) {
-  useOverlay(onClose)
+  const overlay = useOverlay(onClose)
 
   return createPortal(
     <div
@@ -29,7 +29,7 @@ export function Popup({
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div className="popup" role="dialog" aria-modal="true" aria-label={label}>
+      <div ref={overlay} tabIndex={-1} className="popup" role="dialog" aria-modal="true" aria-label={label}>
         {children}
       </div>
     </div>,
