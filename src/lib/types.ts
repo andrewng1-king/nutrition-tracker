@@ -27,6 +27,7 @@ export interface Food {
   addedSugar?: number
   /** true for user-created foods (editable / deletable) */
   custom?: boolean
+  archived?: boolean
   /** wide error bar — món ăn ngoài, ước tính ±10-15% */
   estimate?: boolean
   note?: string
@@ -39,6 +40,8 @@ export type MealSlot = 'sang' | 'trua' | 'toi' | 'snack'
 export interface Entry {
   id: string
   foodId: string
+  /** Bản món tại lúc log; sửa thư viện không đổi bữa ăn cũ. */
+  food?: Food
   /** in `servingUnit` of the food — grams, or number of pieces */
   amount: number
   meal: MealSlot
@@ -153,6 +156,7 @@ export interface Exercise {
   unilateral?: boolean
   /** true for user-created exercises (editable / deletable) */
   custom?: boolean
+  archived?: boolean
   note?: string
   /** bước nhảy của nút −/+ ở ô kg; không có thì 2,5 — máy nấc 5 kg thì đặt 5 */
   kgStep?: number
@@ -179,6 +183,9 @@ export interface LiftSet {
 export interface LiftEntry {
   id: string
   exerciseId: string
+  exercise?: Exercise
+  /** Cân nặng tại buổi tập, không dùng cân hiện tại cho lịch sử. */
+  bodyKg?: number
   sets: LiftSet[]
   ts: number
 }

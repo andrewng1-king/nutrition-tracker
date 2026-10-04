@@ -38,9 +38,9 @@ export function Wallet({ onOpenDay }: { onOpenDay: (date: string) => void }) {
         <h1 className="h1">Ví tiền</h1>
         <div className="card">
           <p className="muted" style={{ margin: 0 }}>
-            Chưa có khoản chi nào. Nhập giá tiền lúc log món ở màn <b>Hôm nay</b>, hoặc bấm
-            vào món đã log để thêm tiền sau. App nhớ đơn giá từng món nên lần sau tự điền.
+            Chưa có khoản chi nào. Thêm giá tiền vào món đã ghi để bắt đầu theo dõi.
           </p>
+          <button className="btn primary full" style={{marginTop:12}} onClick={() => onOpenDay(dateKey())}>Ghi chi tiêu hôm nay</button>
         </div>
       </div>
     )

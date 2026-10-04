@@ -121,7 +121,11 @@ export function History({ onOpenDay }: { onOpenDay: (date: string) => void }) {
         </button>
       </div>
 
-      <div className="card">
+      {loggedCount === 0 ? <div className="card col">
+        <h2 className="h2">Chưa có bữa ăn trong {range} ngày qua</h2>
+        <p className="muted" style={{margin:0}}>Ghi món đầu tiên để bắt đầu theo dõi.</p>
+        <button className="btn primary full" onClick={() => onOpenDay(dateKey())}>Ghi món hôm nay</button>
+      </div> : <div className="card">
         <div className="grid4" style={{ textAlign: 'center', marginBottom: 14 }}>
           <Metric label="ngày có log" value={`${loggedCount}/${range}`} />
           <Metric label="ngày đạt hết" value={String(cleanCount)} color="var(--ok)" />
@@ -132,7 +136,7 @@ export function History({ onOpenDay }: { onOpenDay: (date: string) => void }) {
           Trung bình / ngày có log
         </h2>
         <MacroRings macros={avg} targets={targets} heading="Target ngày tập tạ" />
-      </div>
+      </div>}
 
       <section className="card">
         <h2 className="h2" style={{ marginBottom: 6 }}>

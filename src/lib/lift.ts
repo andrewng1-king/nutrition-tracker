@@ -1,4 +1,5 @@
 import { dateKey } from './macros'
+import { historicalWeight } from './historyWeight'
 import { sessionGroups } from './muscles'
 import type {
   AppData,
@@ -73,7 +74,7 @@ export function setVolume(ex: Exercise, s: LiftSet, bodyKg = 0): number {
 }
 
 export function entryVolume(ex: Exercise, e: LiftEntry, bodyKg = 0): number {
-  return e.sets.reduce((sum, s) => sum + setVolume(ex, s, bodyKg), 0)
+  return e.sets.reduce((sum, s) => sum + setVolume(e.exercise ?? ex, s, e.bodyKg ?? bodyKg), 0)
 }
 
 /** Rep của một set, gồm cả rep ở các nấc dropset. */
@@ -135,7 +136,7 @@ export function reliableE1rm(s: LiftSet): boolean {
 }
 
 export function bestE1rm(ex: Exercise, e: LiftEntry, bodyKg = 0): number {
-  return e.sets.reduce((best, s) => Math.max(best, e1rm(ex, s, bodyKg)), 0)
+  return e.sets.reduce((best, s) => Math.max(best, e1rm(e.exercise ?? ex, s, e.bodyKg ?? bodyKg)), 0)
 }
 
 /** "22 kg/bên × 10", hoặc "tay không × 12" cho bài thể trọng */
@@ -166,7 +167,7 @@ export function summarize(
   let reps = 0
   let volume = 0
   for (const e of entries) {
-    const ex = exById.get(e.exerciseId)
+    const ex = e.exercise ?? exById.get(e.exerciseId)
     if (!ex) continue
     sets += e.sets.length
     reps += entryReps(e)
@@ -186,7 +187,7 @@ export function liftDates(
       const lifts = data.days[d]?.lifts ?? []
       if (lifts.length === 0) return false
       if (!mode || !exById) return true
-      return lifts.some((e) => exById.get(e.exerciseId)?.mode === mode)
+      return lifts.some((e) => (e.exercise ?? exById.get(e.exerciseId))?.mode === mode)
     })
     .sort()
 }
@@ -204,7 +205,7 @@ export function isSessionLocked(
   today = dateKey(),
 ): boolean {
   if (!day) return false
-  const logged = (day.lifts ?? []).some((e) => exById.get(e.exerciseId)?.mode === mode)
+  const logged = (day.lifts ?? []).some((e) => (e.exercise ?? exById.get(e.exerciseId))?.mode === mode)
   if (!logged) return false
   return day.date < today || (day.liftDone ?? []).includes(mode)
 }
@@ -232,6 +233,7 @@ export function exerciseHistory(
     const merged: LiftEntry = {
       ...entries[0],
       sets: entries.flatMap((e) => e.sets),
+      bodyKg: entries[0].bodyKg ?? historicalWeight(data, date, bodyKg),
     }
     const top = topSet(merged)
     if (!top) continue
@@ -320,7 +322,7 @@ export function recentSessions(
   const dates = liftDates(data).filter((d) => d < before)
   for (let i = dates.length - 1; i >= 0 && out.length < limit; i--) {
     const entries = (data.days[dates[i]]?.lifts ?? []).filter(
-      (e) => exById.get(e.exerciseId)?.mode === mode,
+      (e) => (e.exercise ?? exById.get(e.exerciseId))?.mode === mode,
     )
     if (entries.length > 0) out.push({ date: dates[i], entries })
   }
@@ -353,23 +355,23 @@ export function compareWithPrevious(
 ): SessionCompare | undefined {
   const mine = sessionGroups(entries, exById)
   if (mine.length === 0) return undefined
-  const volumeIn = (list: LiftEntry[], groups: LiftGroup[]) =>
+  const volumeIn = (list: LiftEntry[], groups: LiftGroup[], sessionDate: string) =>
     summarize(
       list.filter((e) => {
-        const g = exById.get(e.exerciseId)?.group
+        const g = (e.exercise ?? exById.get(e.exerciseId))?.group
         return g !== undefined && groups.includes(g)
       }),
       exById,
-      bodyKg,
+      historicalWeight(data, sessionDate, bodyKg),
     ).volume
   for (const past of recentSessions(data, mode, date, exById, Infinity)) {
     const theirs = sessionGroups(past.entries, exById)
     const shared = mine.filter((g) => theirs.includes(g))
     const union = new Set([...mine, ...theirs]).size
     if (shared.length * 2 < union) continue
-    const prev = volumeIn(past.entries, shared)
+    const prev = volumeIn(past.entries, shared, past.date)
     if (prev <= 0) continue
-    const now = volumeIn(entries, shared)
+    const now = volumeIn(entries, shared, date)
     return { date: past.date, groups: shared, volume: prev, pct: ((now - prev) / prev) * 100 }
   }
   return undefined
@@ -391,7 +393,7 @@ export function sessionPrs(
   bodyKg = 0,
 ): SessionPr[] {
   return entries.flatMap((e) => {
-    const ex = exById.get(e.exerciseId)
+    const ex = e.exercise ?? exById.get(e.exerciseId)
     if (!ex) return []
     const best = bestE1rm(ex, e, bodyKg)
     const prior = priorBestE1rm(data, ex, date, bodyKg)

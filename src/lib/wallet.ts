@@ -78,7 +78,7 @@ export function walletSummary(data: AppData, today: string = dateKey()): WalletS
   const map = foodMap(data)
   const byMeal = emptyByMeal()
   const monthTotals = new Map<string, { total: number; days: number }>()
-  const perFood = new Map<string, { total: number; times: number }>()
+  const perFood = new Map<string, { total: number; times: number; name: string }>()
   const daily: DaySpend[] = []
 
   let total = 0
@@ -98,13 +98,13 @@ export function walletSummary(data: AppData, today: string = dateKey()): WalletS
       dayTotal += cost
       byMeal[entry.meal] += cost
 
-      const food = map.get(entry.foodId)
+      const food = entry.food ?? map.get(entry.foodId)
       if (food) {
         const m = macrosFor(food, entry.amount, entry.oilTsp ?? 0)
         proteinG += m.protein
         kcal += m.kcal
         const prev = perFood.get(entry.foodId) ?? { total: 0, times: 0 }
-        perFood.set(entry.foodId, { total: prev.total + cost, times: prev.times + 1 })
+        perFood.set(entry.foodId, { total: prev.total + cost, times: prev.times + 1, name: food.name })
       }
     }
 
@@ -138,7 +138,7 @@ export function walletSummary(data: AppData, today: string = dateKey()): WalletS
   const topFoods: TopFood[] = [...perFood.entries()]
     .map(([foodId, v]) => ({
       foodId,
-      name: map.get(foodId)?.name ?? '—',
+      name: v.name,
       total: v.total,
       times: v.times,
     }))

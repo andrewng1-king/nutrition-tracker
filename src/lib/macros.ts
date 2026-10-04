@@ -51,7 +51,7 @@ export function sumEntries(
 ): Macros {
   let total = ZERO
   for (const e of entries) {
-    const food = foodById(e.foodId)
+    const food = e.food ?? foodById(e.foodId)
     if (!food) continue
     total = addMacros(total, macrosFor(food, e.amount, e.oilTsp ?? 0))
   }

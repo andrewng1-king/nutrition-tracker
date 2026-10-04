@@ -155,3 +155,10 @@ cũng không tạo được tài khoản và dùng hết quota miễn phí của
 | "Email này chưa có tài khoản" | Đã tắt đăng ký trước khi tạo tài khoản. Bật lại, đăng nhập, rồi tắt |
 | "Lỗi đồng bộ: relation … does not exist" | Chưa chạy file SQL ở mục 2 |
 | Lâu ngày không dùng, đồng bộ lỗi | Project Free bị tạm dừng sau 7 ngày không hoạt động. Vào dashboard bấm **Restore**; trong lúc đó app vẫn chạy trên máy, có lại là tự đồng bộ |
+# Cập nhật chống ghi đè (04/10/2026)
+
+Nếu đã tạo các bảng, chạy file `supabase/migrations/20261004000000_guard_sync_writes.sql`
+trong Supabase SQL Editor. File chỉ thêm trigger, không xóa dữ liệu. Máy đã có
+bản mới hơn sẽ từ chối request cũ; app giữ thay đổi đang chờ rồi kéo lại bản mới.
+Project mới: chạy migration tạo bảng trước, sau đó chạy migration này.
+Quy tắc vẫn là bản sửa sau cùng thắng theo từng ngày, không tự gộp hai bản cùng ngày.

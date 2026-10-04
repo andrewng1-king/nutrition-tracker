@@ -95,7 +95,7 @@ function LiftModeView({
 
   // Buổi hôm nay chỉ tính phần thuộc đúng chế độ đang xem.
   const todaysLifts = (day.lifts ?? []).filter(
-    (e) => exById.get(e.exerciseId)?.mode === mode,
+    (e) => (e.exercise ?? exById.get(e.exerciseId))?.mode === mode,
   )
   const todaysPlan = (day.plan ?? []).filter((p) => exById.get(p.exerciseId)?.mode === mode)
   const summary = summarize(todaysLifts, exById, data.settings.weightKg)
@@ -244,7 +244,7 @@ function SessionHistory({ mode, onOpen }: { mode: LiftMode; onOpen: (date: strin
         {dates.slice(0, limit).map((date) => {
           const day = data.days[date]
           const entries = (day?.lifts ?? []).filter(
-            (e) => exById.get(e.exerciseId)?.mode === mode,
+            (e) => (e.exercise ?? exById.get(e.exerciseId))?.mode === mode,
           )
           const s = summarize(entries, exById, data.settings.weightKg)
           const label = sessionLabel(entries, exById)

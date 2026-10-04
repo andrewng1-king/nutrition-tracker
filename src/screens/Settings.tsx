@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { n } from '../lib/format'
 import { useData, useSync } from '../lib/hooks'
 import { computeTargets } from '../lib/macros'
@@ -54,24 +54,26 @@ export function Settings() {
         <div className="grid2">
           <div className="field">
             <label htmlFor="s-weight">Cân nặng (kg)</label>
-            <input
+            <SettingsNumber
               id="s-weight"
               type="number"
               inputMode="decimal"
               step="0.1"
               value={s.weightKg}
-              onChange={(e) => setSettings({ weightKg: Number(e.target.value) })}
+              min={0.1}
+              onCommit={(value) => setSettings({ weightKg: value })}
             />
           </div>
           <div className="field">
             <label htmlFor="s-ppk">Protein (g/kg)</label>
-            <input
+            <SettingsNumber
               id="s-ppk"
               type="number"
               inputMode="decimal"
               step="0.05"
               value={s.proteinPerKg}
-              onChange={(e) => setSettings({ proteinPerKg: Number(e.target.value) })}
+              min={0.05}
+              onCommit={(value) => setSettings({ proteinPerKg: value })}
             />
           </div>
         </div>
@@ -98,13 +100,14 @@ export function Settings() {
         </div>
         <div className="field">
           <label htmlFor="s-run">Calo cộng thêm ngày chạy (350–600)</label>
-          <input
+          <SettingsNumber
             id="s-run"
             type="number"
             inputMode="numeric"
             step="25"
             value={s.runDayExtraKcal}
-            onChange={(e) => setSettings({ runDayExtraKcal: Number(e.target.value) })}
+            min={0}
+            onCommit={(value) => setSettings({ runDayExtraKcal: value })}
           />
         </div>
         <p className="dim" style={{ margin: 0 }}>
@@ -261,6 +264,19 @@ export function Settings() {
 }
 
 const EMAIL_KEY = 'nutrition-tracker-login-email'
+
+/** Cho phép xoá/gõ lại số mà không lưu giá trị 0/NaN tạm thời xuống backup. */
+function SettingsNumber({ value, min, onCommit, ...props }: {
+  value: number; min: number; onCommit: (value: number) => void
+} & Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'min'>) {
+  const [raw, setRaw] = useState(String(value))
+  useEffect(() => setRaw(String(value)), [value])
+  return <input {...props} min={min} value={raw} onChange={(e) => setRaw(e.target.value)} onBlur={() => {
+    const next = Number(raw)
+    if (raw.trim() && Number.isFinite(next) && next >= min) onCommit(next)
+    else setRaw(String(value))
+  }} />
+}
 
 function readEmail(): string {
   try {

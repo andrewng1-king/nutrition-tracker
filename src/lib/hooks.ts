@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { draftStore, type DraftMap } from './draft'
 import { store } from './storage'
 import { syncStore, type SyncState } from './sync'
@@ -44,10 +44,42 @@ export function usePref<T extends string>(
   return [value, set]
 }
 
-const overlays: { close: () => void }[] = []
+const overlays: { close: () => void; element: HTMLDivElement }[] = []
+const inertBefore = new Map<HTMLElement, boolean>()
+let overflowBefore = ''
+const focusables = (element: HTMLElement) => [...element.querySelectorAll<HTMLElement>(
+  'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex]:not([tabindex="-1"])',
+)].filter((el) => !el.closest('[hidden], [inert]') && el.getClientRects().length > 0)
+function focusOverlay() {
+  const top = overlays.at(-1)?.element
+  if (top && !top.contains(document.activeElement)) (focusables(top)[0] ?? top).focus()
+}
+function updateInert() {
+  for (const [element, wasInert] of inertBefore) element.inert = wasInert
+  inertBefore.clear()
+  let branch: HTMLElement | undefined = overlays.at(-1)?.element
+  while (branch && branch !== document.body) {
+    for (const sibling of [...(branch.parentElement?.children ?? [])]) {
+      if (sibling === branch || !(sibling instanceof HTMLElement)) continue
+      inertBefore.set(sibling, sibling.inert)
+      sibling.inert = true
+    }
+    branch = branch.parentElement ?? undefined
+  }
+}
 
 function onOverlayKey(e: KeyboardEvent) {
-  if (e.key === 'Escape') overlays[overlays.length - 1]?.close()
+  const top = overlays.at(-1)
+  if (!top) return
+  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); top.close(); return }
+  if (e.key !== 'Tab') return
+  const controls = focusables(top.element)
+  const current = controls.indexOf(document.activeElement as HTMLElement)
+  if (!controls.length) { e.preventDefault(); top.element.focus(); return }
+  if (current < 0 || (e.shiftKey && current === 0) || (!e.shiftKey && current === controls.length - 1)) {
+    e.preventDefault()
+    controls[e.shiftKey ? controls.length - 1 : 0].focus()
+  }
 }
 
 /**
@@ -56,24 +88,39 @@ function onOverlayKey(e: KeyboardEvent) {
  * nằm trên trang buổi tập đóng trước thì không mở khoá cuộn cho cả trang.
  */
 export function useOverlay(onClose: () => void) {
+  const element = useRef<HTMLDivElement>(null)
   const close = useRef(onClose)
   close.current = onClose
 
-  useEffect(() => {
-    const entry = { close: () => close.current() }
+  useLayoutEffect(() => {
+    if (!element.current) return
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const entry = { close: () => close.current(), element: element.current }
     if (overlays.length === 0) {
       document.addEventListener('keydown', onOverlayKey)
+      document.addEventListener('focusin', focusOverlay)
+      overflowBefore = document.body.style.overflow
       document.body.style.overflow = 'hidden'
     }
     overlays.push(entry)
+    // Layout effects của con chạy trước cha khi cả hai mở cùng một lượt render.
+    overlays.sort((a, b) => a.element.contains(b.element) ? -1 : b.element.contains(a.element) ? 1 : 0)
+    updateInert()
+    focusOverlay()
     return () => {
+      const wasTop = overlays.at(-1) === entry
       overlays.splice(overlays.indexOf(entry), 1)
+      updateInert()
       if (overlays.length === 0) {
         document.removeEventListener('keydown', onOverlayKey)
-        document.body.style.overflow = ''
+        document.removeEventListener('focusin', focusOverlay)
+        document.body.style.overflow = overflowBefore
       }
+      if (wasTop && previousFocus?.isConnected) previousFocus.focus()
+      focusOverlay()
     }
   }, [])
+  return element
 }
 
 /**

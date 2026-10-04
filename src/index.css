@@ -16,13 +16,13 @@
   --line: #22251f;
   --text: #eef3ea;
   --muted: #93a08f;
-  --dim: #6c7a6b;
+  --dim: #9aa795;
 
   /* thẻ HUD nổi: đen sâu hơn nền */
   --ink: #0e120e;
   --ink-2: #151a15;
   --on-ink: #eef3ea;
-  --on-ink-dim: #8fa08b;
+  --on-ink-dim: #a7b4a2;
 
   --lime: #c8ff4d;
   --lime-2: #8fe000;
@@ -164,8 +164,8 @@ input[type='number']::-webkit-inner-spin-button {
     transparent 70%
   );
   background-repeat: no-repeat;
-  /* tabbar + FAB clearance, so the last card never sits under either */
-  padding-bottom: calc(146px + var(--safe-b));
+  /* Chừa chỗ cho thanh điều hướng và safe area. */
+  padding-bottom: calc(110px + var(--safe-b));
 }
 
 .screen {
@@ -536,15 +536,6 @@ input[type='number']::-webkit-inner-spin-button {
   transition: stroke-dashoffset 0.45s cubic-bezier(0.3, 0.9, 0.3, 1);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .ring-arc {
-    transition: none;
-  }
-  .sheet,
-  .backdrop {
-    animation: none;
-  }
-}
 
 .ring-center {
   position: absolute;
@@ -1368,7 +1359,7 @@ input[type='number']::-webkit-inner-spin-button {
     inset 0 0 0 1px rgba(255, 209, 102, 0.65),
     0 0 16px -4px rgba(255, 122, 46, 0.75);
   font-weight: 700;
-  animation: turbo-idle 2.6s ease-in-out infinite;
+  animation: none;
 }
 
 /* Chữ + icon nằm trên vệt sáng quét, không bị nó phủ nhoè. */
@@ -1396,26 +1387,23 @@ input[type='number']::-webkit-inner-spin-button {
   pointer-events: none;
 }
 
-/* Nhịp "nảy" lúc kích hoạt, giữ luôn nhịp thở nền — khai báo lại cả hai vì
-   `animation` là một thuộc tính, ghi đè một cái là mất cái kia. */
+/* Chỉ phản hồi một nhịp khi bật Turbo, không lặp khi đang đọc dữ liệu. */
 .daybar button[data-boost='true'] {
-  animation:
-    turbo-pop 0.5s cubic-bezier(0.2, 1.5, 0.4, 1),
-    turbo-idle 2.6s ease-in-out infinite;
+  animation: turbo-pop 0.55s ease-out;
 }
 
 .daybar button[data-boost='true']::after {
-  animation: turbo-sweep 0.85s 0.1s ease-out;
+  animation: none;
 }
 
 /* Kim đồng hồ vọt từ 0 lên vạch rồi rung nhẹ về chỗ — chỉ chạy lúc kích hoạt */
 .daybar button[data-boost='true'] .turbo-needle {
-  animation: needle-sweep 0.9s cubic-bezier(0.2, 1.4, 0.35, 1);
+  animation: none;
 }
 
 /* Chữ "Chạy bộ" đổi thành "Turbo" — cho nó nảy lên một nhịp thay vì đổi âm thầm */
 .daybar button[data-boost='true'] .daybar-label {
-  animation: label-swap 0.45s 0.05s ease-out backwards;
+  animation: none;
 }
 
 /* Thẻ được cường hoá: viền gradient cam thay cho viền xám thường.
@@ -1451,7 +1439,7 @@ input[type='number']::-webkit-inner-spin-button {
   pointer-events: none;
   box-shadow: inset 0 0 26px -10px var(--turbo);
   opacity: 0.4;
-  animation: turbo-breathe 2.6s ease-in-out infinite;
+  animation: none;
 }
 
 /* Thẻ buổi tập không thuộc ngày này: vẫn hiện đủ ba loại nhưng mờ và khoá lại. */
@@ -3528,5 +3516,90 @@ input[type='number']::-webkit-inner-spin-button {
 
   .tabbar button {
     font-size: 10.5px;
+  }
+}
+
+.storage-notice {
+  position: fixed;
+  top: calc(10px + var(--safe-t));
+  left: var(--pad);
+  right: var(--pad);
+  max-width: 532px;
+  margin: 0 auto;
+  padding: 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--warn);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow);
+  z-index: 60;
+  font-size: 14px;
+}
+.storage-notice p { margin: 6px 0 10px; }
+
+/* Tổng quan gọn; món ăn nằm trước các thống kê phụ. */
+.today-overview { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.today-overview .card { min-width:0; display:flex; flex-direction:column; gap:6px; }
+.overview-value { font-size:28px; font-weight:700; overflow-wrap:anywhere; }
+.overview-value small { font-size:13px; font-weight:400; color:var(--dim); }
+.overview-workout { font-size:20px; margin:0; overflow-wrap:anywhere; }
+.today-overview .muted { font-size:13px; }
+.today-screen .display { font-size:28px; }
+.today-screen .display .soft { font-size:15px; }
+.today-quick-actions .btn { min-width:0; }
+.today-macros .between { flex-wrap:wrap; gap:8px; }
+.compact-macros { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
+.macro-meter { width:100%; padding:5px 0; text-align:left; font-size:14px; min-height:44px; }
+.macro-track { display:block; height:5px; border-radius:5px; background:var(--surface-3); margin-top:7px; }
+.macro-track > span { display:block; height:100%; border-radius:inherit; background:var(--lime); transition:width 160ms ease-out; }
+.macro-warnings { margin-top:12px; font-size:13px; }
+.macro-warnings summary,.today-session-details summary,.session-start-options summary { cursor:pointer; min-height:44px; padding:12px 0; color:var(--muted); }
+.macro-warnings .btn { white-space:normal; text-align:left; }
+.today-screen .today-split { grid-template-columns:1fr; }
+.today-screen .today-spend { margin-top:0; }
+.today-screen .today-spend .spend-ring { max-width:220px; }
+.today-screen .today-spend .spend-cap { font-size:12px; }
+.today-screen .today-spend .spend-total { font-size:22px; }
+.today-screen .today-spend .spend-rows { font-size:13px; }
+.dim { font-size:13px; }
+.meal-card-head { min-height:44px; }
+.meal-card-name { font-size:16px; }
+.meal-detail .dim { color:var(--dim); }
+
+/* Mỗi bài mở ô nhập ngay trong danh sách; một set nổi bật ở mỗi thời điểm. */
+.session-exercise { border:1px solid var(--line); border-radius:var(--r-sm); overflow:hidden; }
+.session-exercise > .list-item { width:100%; border:0; border-radius:0; }
+.session-exercise > .list-item[aria-expanded='true'] { background:var(--surface-2); }
+.inline-set-editor { display:flex; flex-direction:column; gap:12px; padding:12px; }
+.inline-set-editor .card { padding:12px; border-radius:12px; }
+.set-previous { color:var(--dim); font-size:13px; margin:0; }
+.focused-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.focused-fields .stepper.lg { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px; }
+.focused-fields .stepper-field { grid-column:1/-1; grid-row:1; }
+.focused-fields .stepper.lg input { height:76px; font-size:30px; padding-bottom:18px; }
+.focused-fields .stepper.lg .stepper-btn { width:100%; height:44px; }
+.focused-fields .stepper-unit { font-size:12px; }
+.empty-workout { padding:20px 0 8px; text-align:center; }
+.empty-workout .muted { margin:8px 0; }
+.session-start-options > .card { margin-top:12px; }
+@media(max-width:340px) {
+  .today-overview { gap:8px; }
+  .today-overview .card { padding:12px; }
+  .overview-value { font-size:24px; }
+  .overview-workout { font-size:18px; }
+  .inline-set-editor { padding:8px; }
+  .set-card-title { font-size:14px; gap:4px; }
+  .focused-fields .stepper.lg input { font-size:26px; }
+}
+
+/* Đặt cuối file để các animation khai báo phía trên không ghi đè lựa chọn này. */
+@media (prefers-reduced-motion: reduce) {
+  .ring-arc, .set-slide, .rest-track span, .macro-track > span, .set-list[data-dragging] .set-block {
+    transition: none !important;
+  }
+  .sheet, .backdrop, .popup, .page, .dev-toast, .finish-spin, .finish-tick,
+  .rest-bar.done, .daybar button[data-turbo], .daybar button[data-boost='true'],
+  .daybar button[data-boost='true']::after, .daybar button[data-boost='true'] .turbo-needle,
+  .daybar button[data-boost='true'] .daybar-label, .card-turbo::after {
+    animation: none !important;
   }
 }
